@@ -13,14 +13,22 @@ import {
 import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
-import { EXERCISES } from "@/constants/workout-data";
+import { RUNNER_EXERCISES } from "@/constants/runner-exercises";
 
-const WORKOUT_ORANGE = "#FF8C00";
+const RUNNER_RED = "#E8335A";
 
 const LEVEL_COLORS: Record<string, string> = {
   Débutant: "#4CAF50",
   Intermédiaire: "#FF8C00",
   Avancé: "#E8335A",
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Échauffement: "#FF8C00",
+  Technique: "#4FC3F7",
+  Renforcement: "#E8335A",
+  Récupération: "#00E676",
+  Mobilité: "#AB47BC",
 };
 
 function YoutubeEmbed({ videoId }: { videoId: string }) {
@@ -59,7 +67,7 @@ function YoutubeEmbed({ videoId }: { videoId: string }) {
       activeOpacity={0.85}
     >
       <View style={styles.videoOverlay}>
-        <View style={styles.playCircle}>
+        <View style={[styles.playCircle, { backgroundColor: RUNNER_RED }]}>
           <Ionicons name="play" size={28} color="#fff" />
         </View>
         <Text style={styles.videoLabel}>Lancer la vidéo</Text>
@@ -72,15 +80,16 @@ function YoutubeEmbed({ videoId }: { videoId: string }) {
   );
 }
 
-export default function ExerciseDetail() {
+export default function RunnerExerciseDetail() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const exercise = EXERCISES.find((e) => e.id === id);
+  const exercise = RUNNER_EXERCISES.find((e) => e.id === id);
 
   const topPad = Platform.OS === "web" ? 0 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const catColor = exercise ? (CATEGORY_COLORS[exercise.category] ?? RUNNER_RED) : RUNNER_RED;
 
   if (!exercise) {
     return (
@@ -89,7 +98,7 @@ export default function ExerciseDetail() {
       >
         <Text style={{ color: colors.foreground }}>Exercice introuvable</Text>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: WORKOUT_ORANGE, marginTop: 16 }}>Retour</Text>
+          <Text style={{ color: RUNNER_RED, marginTop: 16 }}>Retour</Text>
         </TouchableOpacity>
       </View>
     );
@@ -103,7 +112,7 @@ export default function ExerciseDetail() {
           <Ionicons name="arrow-back" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
-          {exercise.name}
+          {exercise.title}
         </Text>
         <View style={{ width: 38 }} />
       </View>
@@ -120,93 +129,64 @@ export default function ExerciseDetail() {
             resizeMode="cover"
           />
           <View style={styles.coverGradient} />
-          <View style={styles.coverBadge}>
-            <Text style={styles.coverBadgeText}>{exercise.muscleGroup}</Text>
+          <View style={[styles.coverBadge, { backgroundColor: catColor + "CC" }]}>
+            <Text style={styles.coverBadgeText}>{exercise.category}</Text>
           </View>
         </View>
 
         {/* YouTube embed */}
-        <YoutubeEmbed videoId={exercise.videoId} />
+        <YoutubeEmbed videoId={exercise.youtubeEmbedId} />
 
         {/* Badges */}
         <View style={styles.badgesRow}>
-          <View
-            style={[styles.badge, { backgroundColor: LEVEL_COLORS[exercise.level] + "20" }]}
-          >
+          <View style={[styles.badge, { backgroundColor: LEVEL_COLORS[exercise.level] + "20" }]}>
             <Text style={[styles.badgeText, { color: LEVEL_COLORS[exercise.level] }]}>
               {exercise.level}
             </Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: WORKOUT_ORANGE + "20" }]}>
-            <Text style={[styles.badgeText, { color: WORKOUT_ORANGE }]}>{exercise.type}</Text>
-          </View>
-          <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="time-outline" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.badgeText, { color: colors.mutedForeground }]}>
-              ~{exercise.durationMin} min
-            </Text>
+          <View style={[styles.badge, { backgroundColor: RUNNER_RED + "20" }]}>
+            <Ionicons name="time-outline" size={12} color={RUNNER_RED} />
+            <Text style={[styles.badgeText, { color: RUNNER_RED }]}>{exercise.duration} min</Text>
           </View>
           <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
             <Ionicons name="flame-outline" size={12} color={colors.mutedForeground} />
             <Text style={[styles.badgeText, { color: colors.mutedForeground }]}>
-              {exercise.calPerMin} kcal/min
+              ~{exercise.calories} kcal
             </Text>
-          </View>
-        </View>
-
-        {/* Equipment */}
-        <View style={[styles.equipRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Ionicons name="barbell-outline" size={16} color={WORKOUT_ORANGE} />
-          <Text style={[styles.equipLabel, { color: colors.mutedForeground }]}>Équipement</Text>
-          <Text style={[styles.equipValue, { color: colors.foreground }]}>{exercise.equipment}</Text>
-        </View>
-
-        {/* Muscles */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Muscles sollicités</Text>
-          <View style={{ gap: 8 }}>
-            <View style={styles.muscleRow}>
-              <Text style={[styles.muscleLabel, { color: colors.mutedForeground }]}>Principal</Text>
-              <View style={[styles.muscleBadge, { backgroundColor: WORKOUT_ORANGE + "20" }]}>
-                <Text style={[styles.muscleBadgeText, { color: WORKOUT_ORANGE }]}>
-                  {exercise.muscleGroup}
-                </Text>
-              </View>
-            </View>
-            {exercise.secondaryMuscles.length > 0 && (
-              <View style={styles.muscleRow}>
-                <Text style={[styles.muscleLabel, { color: colors.mutedForeground }]}>Secondaires</Text>
-                <View style={styles.secMuscleRow}>
-                  {exercise.secondaryMuscles.map((m) => (
-                    <View key={m} style={[styles.muscleBadge, { backgroundColor: colors.secondary }]}>
-                      <Text style={[styles.muscleBadgeText, { color: colors.mutedForeground }]}>
-                        {m}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
           </View>
         </View>
 
         {/* Description */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Description</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>À propos</Text>
           <Text style={[styles.sectionText, { color: colors.mutedForeground }]}>
             {exercise.description}
           </Text>
         </View>
 
+        {/* Muscles */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Muscles ciblés</Text>
+          <View style={styles.muscleWrap}>
+            {exercise.musclesTargeted.map((m) => (
+              <View key={m} style={[styles.muscleBadge, { backgroundColor: RUNNER_RED + "18" }]}>
+                <Text style={[styles.muscleBadgeText, { color: RUNNER_RED }]}>{m}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* Benefits */}
-        <View style={[styles.section, { backgroundColor: WORKOUT_ORANGE + "10", borderColor: WORKOUT_ORANGE + "30" }]}>
+        <View
+          style={[styles.section, { backgroundColor: RUNNER_RED + "10", borderColor: RUNNER_RED + "30" }]}
+        >
           <View style={styles.tipsHeader}>
-            <Ionicons name="star-outline" size={18} color={WORKOUT_ORANGE} />
+            <Ionicons name="star-outline" size={18} color={RUNNER_RED} />
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Bénéfices</Text>
           </View>
           {exercise.benefits.map((b, i) => (
             <View key={i} style={styles.tipRow}>
-              <View style={[styles.tipDot, { backgroundColor: WORKOUT_ORANGE }]} />
+              <View style={[styles.tipDot, { backgroundColor: RUNNER_RED }]} />
               <Text style={[styles.instructionText, { color: colors.mutedForeground }]}>{b}</Text>
             </View>
           ))}
@@ -216,36 +196,18 @@ export default function ExerciseDetail() {
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Instructions</Text>
           <View style={{ gap: 10 }}>
-            {exercise.instructions.map((instruction, i) => (
+            {exercise.instructions.map((step, i) => (
               <View key={i} style={styles.instructionRow}>
-                <View style={[styles.stepNum, { backgroundColor: WORKOUT_ORANGE }]}>
+                <View style={[styles.stepNum, { backgroundColor: RUNNER_RED }]}>
                   <Text style={styles.stepNumText}>{i + 1}</Text>
                 </View>
                 <Text style={[styles.instructionText, { color: colors.mutedForeground }]}>
-                  {instruction}
+                  {step}
                 </Text>
               </View>
             ))}
           </View>
         </View>
-
-        {/* Tips */}
-        {exercise.tips.length > 0 && (
-          <View
-            style={[styles.section, { backgroundColor: colors.card, borderColor: WORKOUT_ORANGE + "40" }]}
-          >
-            <View style={styles.tipsHeader}>
-              <Ionicons name="bulb-outline" size={18} color={WORKOUT_ORANGE} />
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Conseils pro</Text>
-            </View>
-            {exercise.tips.map((tip, i) => (
-              <View key={i} style={styles.tipRow}>
-                <View style={[styles.tipDot, { backgroundColor: WORKOUT_ORANGE }]} />
-                <Text style={[styles.instructionText, { color: colors.mutedForeground }]}>{tip}</Text>
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* Tags */}
         {exercise.tags.length > 0 && (
@@ -281,13 +243,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 80,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   coverBadge: {
     position: "absolute",
     bottom: 10,
     left: 12,
-    backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
@@ -304,7 +265,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: WORKOUT_ORANGE,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -329,25 +289,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   badgeText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  equipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  equipLabel: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
-  equipValue: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   section: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
   sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   sectionText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  muscleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  muscleLabel: { fontSize: 13, fontFamily: "Inter_400Regular", width: 72 },
-  secMuscleRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 },
-  muscleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  muscleWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  muscleBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   muscleBadgeText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  tipsHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tipRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  tipDot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
   instructionRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
   stepNum: {
     width: 24,
@@ -359,9 +309,6 @@ const styles = StyleSheet.create({
   },
   stepNumText: { color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" },
   instructionText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 21 },
-  tipsHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  tipRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  tipDot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   tagText: { fontSize: 11, fontFamily: "Inter_400Regular" },

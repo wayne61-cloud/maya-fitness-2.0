@@ -1,13 +1,11 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { Stack, router } from "expo-router";
-import React from "react";
-import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
-import { useColors } from "@/hooks/useColors";
+import { Stack } from "expo-router";
 
 export default function RunnerLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="exercise/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="exercises" options={{ headerShown: false }} />
     </Stack>
   );
 }
