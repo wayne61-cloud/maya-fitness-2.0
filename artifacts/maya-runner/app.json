@@ -15,6 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
+      "bundleIdentifier": "com.mayafitness.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Maya Runner utilise ta localisation pour tracer tes courses en temps réel.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Maya Runner utilise ta localisation pour tracer tes courses.",
