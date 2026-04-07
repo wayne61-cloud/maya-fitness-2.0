@@ -16,6 +16,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; role?: UserRole; error?: string }>;
+  register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   isUser: boolean;
@@ -69,6 +70,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }
 
+  const register = useCallback(async (email: string, password: string, name: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name } },
+      });
+      if (error || !data.user) {
+        return { success: false, error: error?.message ?? "Erreur lors de l'inscription" };
+      }
+      return { success: true };
+    } catch {
+      return { success: false, error: "Erreur lors de l'inscription" };
+    }
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -92,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isUser = user?.role === "user";
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, isAdmin, isUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, isAdmin, isUser }}>
       {children}
     </AuthContext.Provider>
   );

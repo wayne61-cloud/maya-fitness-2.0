@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -16,15 +15,32 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 
+type Mode = "login" | "register";
+
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const [mode, setMode] = useState<Mode>("login");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError(null);
+    setSuccess(null);
+    setName("");
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+  }
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
@@ -42,7 +58,33 @@ export default function LoginScreen() {
         router.replace("/(tabs)");
       }
     } else {
-      setError(result.error ?? "Erreur de connexion");
+      setError(result.error ?? "Email ou mot de passe incorrect");
+    }
+  }
+
+  async function handleRegister() {
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setError("Veuillez remplir tous les champs");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Le mot de passe doit contenir au moins 6 caractères");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Les mots de passe ne correspondent pas");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const result = await register(email.trim(), password, name.trim());
+    setLoading(false);
+    if (result.success) {
+      setSuccess("Compte créé ! Connecte-toi maintenant.");
+      switchMode("login");
+      setEmail(email.trim());
+    } else {
+      setError(result.error ?? "Erreur lors de l'inscription");
     }
   }
 
@@ -68,13 +110,55 @@ export default function LoginScreen() {
           <Text style={styles.tagline}>Ton coach fitness intelligent</Text>
         </View>
 
+        {/* Tabs */}
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            style={[styles.tab, mode === "login" && styles.tabActive]}
+            onPress={() => switchMode("login")}
+          >
+            <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>
+              Connexion
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, mode === "register" && styles.tabActive]}
+            onPress={() => switchMode("register")}
+          >
+            <Text style={[styles.tabText, mode === "register" && styles.tabTextActive]}>
+              Inscription
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Connexion</Text>
+          {success && (
+            <View style={styles.successBox}>
+              <Text style={styles.successText}>{success}</Text>
+            </View>
+          )}
+
+          {mode === "register" && (
+            <View style={styles.fieldWrap}>
+              <Text style={styles.fieldLabel}>Prénom / Nom</Text>
+              <View style={styles.inputRow}>
+                <Text style={styles.icon}>👤</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ton prénom"
+                  placeholderTextColor="#555"
+                  value={name}
+                  onChangeText={(t) => { setName(t); setError(null); }}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+          )}
 
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>Email</Text>
             <View style={styles.inputRow}>
-              <Ionicons name="mail-outline" size={18} color="#888" style={{ marginRight: 10 }} />
+              <Text style={styles.icon}>✉️</Text>
               <TextInput
                 style={styles.input}
                 placeholder="ton@email.com"
@@ -92,7 +176,7 @@ export default function LoginScreen() {
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>Mot de passe</Text>
             <View style={styles.inputRow}>
-              <Ionicons name="lock-closed-outline" size={18} color="#888" style={{ marginRight: 10 }} />
+              <Text style={styles.icon}>🔒</Text>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
                 placeholder="••••••••"
@@ -100,37 +184,65 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={(t) => { setPassword(t); setError(null); }}
                 secureTextEntry={!showPassword}
-                returnKeyType="done"
-                onSubmitEditing={handleLogin}
+                returnKeyType={mode === "login" ? "done" : "next"}
+                onSubmitEditing={mode === "login" ? handleLogin : undefined}
               />
               <TouchableOpacity onPress={() => setShowPassword((p) => !p)}>
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={18}
-                  color="#888"
-                />
+                <Text style={styles.icon}>{showPassword ? "🙈" : "👁️"}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
+          {mode === "register" && (
+            <View style={styles.fieldWrap}>
+              <Text style={styles.fieldLabel}>Confirmer le mot de passe</Text>
+              <View style={styles.inputRow}>
+                <Text style={styles.icon}>🔒</Text>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="••••••••"
+                  placeholderTextColor="#555"
+                  value={confirmPassword}
+                  onChangeText={(t) => { setConfirmPassword(t); setError(null); }}
+                  secureTextEntry={!showPassword}
+                  returnKeyType="done"
+                  onSubmitEditing={handleRegister}
+                />
+              </View>
+            </View>
+          )}
+
           {error && (
             <View style={styles.errorBox}>
-              <Ionicons name="alert-circle" size={16} color="#E8335A" />
+              <Text style={styles.errorIcon}>⚠️</Text>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
           <TouchableOpacity
             style={[styles.btn, loading && { opacity: 0.7 }]}
-            onPress={handleLogin}
+            onPress={mode === "login" ? handleLogin : handleRegister}
             disabled={loading}
             activeOpacity={0.85}
           >
             {loading ? (
               <ActivityIndicator color="#0D0D0D" />
             ) : (
-              <Text style={styles.btnText}>Se connecter</Text>
+              <Text style={styles.btnText}>
+                {mode === "login" ? "Se connecter" : "Créer mon compte"}
+              </Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.switchLink}
+            onPress={() => switchMode(mode === "login" ? "register" : "login")}
+          >
+            <Text style={styles.switchLinkText}>
+              {mode === "login"
+                ? "Pas encore de compte ? S'inscrire"
+                : "Déjà un compte ? Se connecter"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -148,7 +260,7 @@ const styles = StyleSheet.create({
   },
   logoWrap: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 32,
   },
   mascot: {
     width: 88,
@@ -162,13 +274,36 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFD60A",
     letterSpacing: -0.5,
-    fontFamily: "Inter_700Bold",
   },
   tagline: {
     fontSize: 14,
     color: "#888",
     marginTop: 6,
-    fontFamily: "Inter_400Regular",
+  },
+  tabs: {
+    flexDirection: "row",
+    width: "100%",
+    backgroundColor: "#1A1A1A",
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 10,
+  },
+  tabActive: {
+    backgroundColor: "#FFD60A",
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#888",
+  },
+  tabTextActive: {
+    color: "#0D0D0D",
   },
   card: {
     width: "100%",
@@ -179,13 +314,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#252525",
   },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 24,
-    fontFamily: "Inter_700Bold",
-  },
   fieldWrap: {
     marginBottom: 18,
   },
@@ -193,7 +321,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#888",
     marginBottom: 8,
-    fontFamily: "Inter_500Medium",
+    fontWeight: "500",
     letterSpacing: 0.3,
   },
   inputRow: {
@@ -206,11 +334,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
+  icon: {
+    fontSize: 16,
+    marginRight: 10,
+  },
   input: {
     flex: 1,
     color: "#FFFFFF",
     fontSize: 15,
-    fontFamily: "Inter_400Regular",
   },
   errorBox: {
     flexDirection: "row",
@@ -221,11 +352,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 8,
   },
+  errorIcon: {
+    fontSize: 16,
+  },
   errorText: {
     color: "#E8335A",
     fontSize: 13,
-    fontFamily: "Inter_400Regular",
     flex: 1,
+  },
+  successBox: {
+    backgroundColor: "#22C55E15",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successText: {
+    color: "#22C55E",
+    fontSize: 13,
+    textAlign: "center",
   },
   btn: {
     backgroundColor: "#FFD60A",
@@ -238,11 +382,19 @@ const styles = StyleSheet.create({
     color: "#0D0D0D",
     fontSize: 16,
     fontWeight: "700",
-    fontFamily: "Inter_700Bold",
+  },
+  switchLink: {
+    alignItems: "center",
+    marginTop: 16,
+    paddingVertical: 4,
+  },
+  switchLinkText: {
+    color: "#FFD60A",
+    fontSize: 14,
+    fontWeight: "500",
   },
   version: {
     color: "#2A2A2A",
     fontSize: 12,
-    fontFamily: "Inter_400Regular",
   },
 });
