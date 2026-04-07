@@ -1,0 +1,216 @@
+Tu es un expert en product design mobile et en architecture d’application.
+
+Je veux construire une application centrale appelée **Maya Fitness**, qui regroupe plusieurs modules fitness.
+
+IMPORTANT :
+Maya Fitness n’est PAS une app vide. C’est une application principale (hub) qui contient plusieurs modules indépendants.
+
+---
+
+### 🧱 ARCHITECTURE GLOBALE
+
+L’application doit être structurée comme suit :
+
+* Maya Fitness (app principale / hub)
+
+  * Module 1 : Maya Runner (déjà existant)
+  * Module 2 : Maya Workout (à créer à partir des screens fournis)
+  * Module 3 : Maya Yoga & Pilates (sera ajouté plus tard)
+
+Chaque module doit être conçu comme une “mini-app” à l’intérieur de Maya Fitness, avec sa propre logique, ses écrans et son expérience, tout en partageant :
+
+* le profil utilisateur
+* les statistiques globales
+* les objectifs
+* le design system
+* les données
+
+---
+
+### 🏃 MODULE EXISTANT : MAYA RUNNER
+
+Le module Maya Runner est déjà développé.
+
+Il doit être :
+
+* conservé tel quel
+* intégré dans Maya Fitness comme un module interne
+* accessible depuis le dashboard principal
+
+Ne pas le recréer. Juste l’intégrer proprement dans l’architecture globale.
+
+---
+
+### 🏋️ MODULE À CRÉER : MAYA WORKOUT
+
+Créer le module **Workout** en te basant EXACTEMENT sur les écrans fournis.
+
+Ce module doit contenir :
+
+1. Accueil Workout (mode salle)
+2. Liste des exercices avec filtres (pectoraux, dos, épaules, etc.)
+3. Détail d’un exercice :
+
+   * vidéo (YouTube embed)
+   * niveau
+   * type
+   * calories/min
+   * description
+   * instructions
+   * conseils
+4. Liste des séances (programmes)
+5. Détail d’une séance :
+
+   * liste des exercices
+   * séries / répétitions / repos
+   * bouton "Terminer cette séance"
+6. Onglet progression :
+
+   * statistiques
+   * photos
+7. Profil Workout (connecté au profil global)
+
+Respecter le design :
+
+* dark mode
+* cartes arrondies
+* accent jaune/or
+* UI premium fitness
+
+---
+
+### 🧠 HUB CENTRAL : MAYA FITNESS
+
+Créer l’application principale avec une navigation globale :
+
+* Accueil (dashboard global)
+* Activité (historique global)
+* Objectifs
+* Profil
+
+---
+
+### 🏠 ÉCRAN ACCUEIL (IMPORTANT)
+
+Le dashboard doit afficher :
+
+* résumé du jour :
+
+  * calories brûlées
+  * minutes actives
+  * séances effectuées
+
+* accès aux modules :
+
+  * Runner
+  * Workout
+  * Yoga & Pilates (placeholder pour l’instant)
+
+* recommandations :
+
+  * séance suggérée
+  * activité à reprendre
+
+* progression hebdomadaire
+
+---
+
+### 👤 PROFIL GLOBAL
+
+Un seul profil utilisateur pour toute l’app :
+
+* photo
+* nom
+* email
+* poids / taille
+* objectif (prise de masse, perte de poids…)
+* niveau
+* statistiques globales :
+
+  * calories totales
+  * séances totales
+  * distance totale (running)
+
+---
+
+### 🎯 OBJECTIFS
+
+Créer un système simple :
+
+* objectifs hebdomadaires
+* progression
+* indicateurs visuels
+
+---
+
+### 📊 ACTIVITÉ
+
+Historique global :
+
+* running
+* workout
+* (plus tard yoga)
+
+Avec filtres par type d’activité.
+
+---
+
+### ⚠️ POINT TRÈS IMPORTANT : FORMULAIRE SPORTIF
+
+À chaque première entrée dans un module (Runner, Workout, Yoga & Pilates) :
+
+L’utilisateur doit remplir un formulaire spécifique.
+
+Exemple pour Workout :
+
+* niveau (débutant, intermédiaire, avancé)
+* objectif (prise de masse, perte de poids, tonification)
+* fréquence d’entraînement
+* zones à travailler
+
+Ce formulaire doit :
+
+* être obligatoire à la première entrée
+* être sauvegardé
+* personnaliser l’expérience
+
+---
+
+### 🎨 DESIGN SYSTEM
+
+Respecter :
+
+* thème sombre
+* accent jaune/or
+* cartes avec bordures légères
+* typographie élégante (titres forts, contenu lisible)
+* spacing généreux
+* UI moderne type app fitness premium
+
+---
+
+### 🧠 LOGIQUE PRODUIT
+
+Important :
+
+* chaque module est indépendant MAIS connecté
+* toutes les données remontent dans Maya Fitness
+* l’utilisateur ne doit jamais sentir qu’il change d’app
+
+---
+
+### 🎯 OBJECTIF FINAL
+
+Créer une application unifiée, fluide et premium où :
+
+* Maya Runner est un module existant intégré
+* Maya Workout est un module complet basé sur les écrans fournis
+* Maya Fitness est le centre de contrôle global
+
+Ne pas créer plusieurs apps.
+Créer UNE seule app modulaire.
+
+---
+
+Lorsque c’est terminé, prépare la structure pour accueillir un futur module :
+Maya Yoga & Pilates.

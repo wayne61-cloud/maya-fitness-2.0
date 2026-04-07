@@ -1,0 +1,384 @@
+Tu es un expert en product design mobile, architecture logicielle et apps fitness premium.
+
+Je veux créer une application mobile complète appelée **Maya Fitness**.
+
+Cette app est un **hub central** qui regroupe plusieurs modules fitness indépendants mais connectés.
+
+---
+
+# 🧱 ARCHITECTURE GLOBALE
+
+Maya Fitness est une seule application avec plusieurs modules internes :
+
+* Module 1 : Maya Runner (déjà existant)
+* Module 2 : Maya Workout (musculation)
+* Module 3 : Maya Yoga & Pilates
+* Module 4 : Maya Nutrition
+
+Chaque module est une “mini-app” interne avec :
+
+* ses propres écrans
+* sa propre logique métier
+* mais un **profil utilisateur commun**
+* des **statistiques globales partagées**
+
+---
+
+# 🏃 MODULE RUNNER (EXISTANT)
+
+* Déjà développé
+* Ne pas recréer
+* L’intégrer comme module interne
+* Accessible depuis le dashboard
+
+---
+
+# 🏋️ MODULE WORKOUT
+
+Basé sur les écrans fournis.
+
+Fonctionnalités :
+
+* Accueil mode salle
+
+* Liste exercices (avec filtres : pectoraux, dos, jambes…)
+
+* Détail exercice :
+
+  * vidéo YouTube embed
+  * niveau
+  * type
+  * calories/min
+  * description
+  * instructions
+  * conseils
+
+* Séances (programmes)
+
+* Détail séance :
+
+  * exercices
+  * séries / reps / repos
+  * bouton “Terminer séance”
+
+* Progression :
+
+  * stats
+  * photos
+
+---
+
+# 🧘 MODULE YOGA & PILATES
+
+Basé sur les écrans fournis.
+
+Style visuel différent :
+
+* thème clair
+* couleurs pastel (rose / beige)
+* ambiance zen / bien-être
+
+Fonctionnalités :
+
+### Accueil
+
+* message personnalisé
+* stats (séances, minutes, séries)
+* favoris
+* citation motivation
+* accès rapide aux catégories :
+
+  * Pilates
+  * Yoga
+  * Stretching
+  * Méditation
+  * Barre
+
+### Exercices
+
+* liste avec filtres
+* favoris
+* niveau (débutant / intermédiaire)
+* durée
+* calories
+
+### Détail exercice
+
+* image + titre
+* niveau
+* groupes musculaires
+* durée / calories
+* progression (%)
+* description
+* étapes détaillées
+* bouton “Démarrer”
+
+### Mode séance
+
+* timer
+* progression
+* navigation entre étapes
+
+### Progression
+
+* stats globales
+* graphique semaine
+* tendance 8 semaines
+* catégories pratiquées
+* exercices les plus faits
+
+### Profil Yoga
+
+* stats
+* favoris
+* progression
+
+---
+
+# 🥗 MODULE NUTRITION (TRÈS IMPORTANT)
+
+Ce module doit être pensé comme une **grosse feature scalable**, pas un simple dictionnaire.
+
+## ⚠️ OBJECTIF
+
+Avoir **des milliers de recettes**, évolutives, filtrables et personnalisées.
+
+---
+
+## STRUCTURE NUTRITION
+
+### 1. ONBOARDING NUTRITION
+
+À la première entrée :
+
+* sport pratiqué (running, muscu, yoga…)
+* objectif :
+
+  * prise de masse
+  * perte de poids
+  * maintien
+* préférences alimentaires
+* aliments non aimés
+* allergies
+* régime :
+
+  * végétarien
+  * vegan
+  * etc.
+
+---
+
+### 2. PÔLE RECETTES (GROS MODULE)
+
+Ce n’est PAS une liste statique.
+
+Tu dois créer :
+
+* une base de données scalable de recettes
+* pagination / lazy loading
+* filtres avancés
+
+Chaque recette contient :
+
+* titre
+* image
+* vidéo YouTube embed
+* temps de préparation
+* temps de cuisson
+* calories
+* macros (protéines, glucides, lipides)
+* ingrédients
+* étapes détaillées
+
+Filtres :
+
+* calories
+* objectif (prise de masse, sèche)
+* type (petit-déj, déjeuner, dîner, snack)
+* temps rapide
+* ingrédients exclus
+
+👉 IMPORTANT :
+Prévoir une structure permettant d’ajouter **des milliers de recettes dynamiquement**
+(API ou base extensible)
+
+---
+
+### 3. PÔLE “MES MENUS”
+
+L’utilisateur peut :
+
+* créer ses menus
+* sélectionner des recettes
+* organiser sa journée (petit-déj / déjeuner / dîner)
+
+---
+
+### 4. PÔLE “MES CALORIES”
+
+* total calories consommées
+* par jour / semaine / mois
+* historique
+* graphique
+* breakdown macros
+
+---
+
+### 5. PÔLE BONUS (À AJOUTER)
+
+Créer un module :
+
+👉 “Suivi nutrition intelligent”
+
+* recommandations de repas
+* suggestions selon objectif
+* suggestions selon activité sportive
+* alertes :
+
+  * manque de protéines
+  * surplus calorique
+* score nutrition journalier
+
+---
+
+# 🧠 HUB CENTRAL MAYA FITNESS
+
+Créer une navigation globale :
+
+* Accueil
+* Activité
+* Objectifs
+* Profil
+
+---
+
+## 🏠 ACCUEIL
+
+Afficher :
+
+* résumé du jour :
+
+  * calories brûlées
+  * calories consommées
+  * minutes actives
+  * séances
+
+* accès modules :
+
+  * Runner
+  * Workout
+  * Yoga & Pilates
+  * Nutrition
+
+* recommandations intelligentes :
+
+  * séance
+  * repas
+  * récupération
+
+* progression hebdomadaire
+
+---
+
+## 📊 ACTIVITÉ
+
+Historique global :
+
+* running
+* workout
+* yoga
+* nutrition
+
+Filtres par type.
+
+---
+
+## 🎯 OBJECTIFS
+
+* objectifs hebdomadaires
+* progression
+* indicateurs visuels
+* streak
+
+---
+
+## 👤 PROFIL GLOBAL
+
+* infos utilisateur
+* stats globales :
+
+  * calories brûlées
+  * calories consommées
+  * séances
+  * distance running
+* préférences sport
+* préférences nutrition
+
+---
+
+# ⚠️ FORMULAIRE SPORTIF (CRUCIAL)
+
+À la première entrée dans CHAQUE module :
+
+Créer un formulaire spécifique.
+
+Exemple :
+
+* niveau
+* objectif
+* fréquence
+* préférences
+
+Ces données doivent :
+
+* être sauvegardées
+* personnaliser l’expérience
+
+---
+
+# 🎨 DESIGN SYSTEM
+
+Deux styles :
+
+### Fitness (Runner / Workout)
+
+* dark mode
+* accent jaune/or
+* style puissant
+
+### Yoga / Nutrition
+
+* clair
+* pastel
+* ambiance calme
+
+---
+
+# 🧠 LOGIQUE PRODUIT
+
+* 1 seule app
+* modules indépendants
+* données centralisées
+* expérience fluide
+* jamais de rupture entre modules
+
+---
+
+# 🎯 OBJECTIF FINAL
+
+Créer une application fitness complète type :
+
+* Strava + Nike Training + Freeletics + MyFitnessPal
+
+Mais dans une seule app cohérente.
+
+---
+
+Prévoir dès maintenant :
+
+* scalabilité (beaucoup de contenu)
+* performance
+* modularité
+
+Ne pas créer plusieurs apps.
+Créer UNE app modulaire premium.

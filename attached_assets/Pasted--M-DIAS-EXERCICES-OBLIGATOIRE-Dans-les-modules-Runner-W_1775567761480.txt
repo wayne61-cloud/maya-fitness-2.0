@@ -1,0 +1,88 @@
+### 🎥 MÉDIAS EXERCICES — OBLIGATOIRE
+
+Dans les modules **Runner**, **Workout** et **Yoga & Pilates**, tous les pôles liés aux **exercices** doivent contenir des médias complets.
+
+Chaque exercice doit obligatoirement avoir :
+
+* une **illustration / image de couverture**
+* une **vidéo YouTube embed**
+* un **titre**
+* une **catégorie**
+* un **niveau**
+* une **durée estimée**
+* les **calories estimées**
+* une **description**
+* des **instructions détaillées étape par étape**
+
+### RÈGLE IMPORTANTE
+
+Il ne doit pas y avoir seulement quelques vidéos sur certains exercices.
+
+Je veux une logique de contenu complète :
+
+* **chaque fiche exercice** dans Runner, Workout et Yoga & Pilates doit avoir son illustration et sa vidéo YouTube intégrée
+* la vidéo doit être visible directement dans la fiche détail de l’exercice
+* l’illustration doit être visible dans les listes et dans la fiche détail
+
+### RUNNER
+
+Dans le module Runner, cela concerne tous les exercices et contenus pédagogiques liés à :
+
+* échauffement running
+* mobilité
+* renforcement pour coureurs
+* récupération
+* étirements post-course
+* exercices techniques de course
+
+### WORKOUT
+
+Dans le module Workout, cela concerne tous les exercices de musculation :
+
+* pectoraux
+* dos
+* épaules
+* bras
+* jambes
+* abdos
+* fessiers
+* full body
+
+### YOGA & PILATES
+
+Dans le module Yoga & Pilates, cela concerne tous les exercices, flows et contenus guidés :
+
+* pilates
+* yoga
+* stretching
+* méditation guidée
+* barre
+
+### STRUCTURE DE DONNÉES À PRÉVOIR
+
+Chaque exercice doit prévoir au minimum les champs suivants :
+
+* id
+* title
+* module
+* category
+* level
+* coverImage
+* youtubeUrl
+* youtubeEmbedId
+* duration
+* calories
+* description
+* instructions[]
+* benefits[]
+* musclesTargeted[]
+* tags[]
+
+### IMPORTANT
+
+Prévoir une structure scalable pour pouvoir gérer **beaucoup d’exercices**, sans contenu statique limité.
+Je veux une base de contenu extensible où chaque exercice possède systématiquement :
+
+1. son visuel
+2. sa vidéo YouTube
+3. sa fiche complète
