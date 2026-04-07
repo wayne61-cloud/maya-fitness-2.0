@@ -2,7 +2,6 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
-  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -14,29 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { RunCard } from "@/components/RunCard";
-import {
-  RUNNER_EXERCISES,
-  RUNNER_EXERCISE_CATEGORIES,
-  type RunnerExerciseCategory,
-} from "@/constants/runner-exercises";
 
 const RUNNER_RED = "#E8335A";
-
-const CATEGORY_COLORS: Record<RunnerExerciseCategory, string> = {
-  Échauffement: "#FF8C00",
-  Technique: "#4FC3F7",
-  Renforcement: "#E8335A",
-  Récupération: "#00E676",
-  Mobilité: "#AB47BC",
-};
-
-const CATEGORY_ICONS: Record<RunnerExerciseCategory, string> = {
-  Échauffement: "flame-outline",
-  Technique: "trending-up-outline",
-  Renforcement: "barbell-outline",
-  Récupération: "leaf-outline",
-  Mobilité: "body-outline",
-};
 
 function StatBox({
   value,
@@ -82,11 +60,6 @@ export default function RunnerHome() {
     100
   );
   const recentRuns = runs.slice(0, 3);
-
-  // Featured exercises (one per category)
-  const featured = RUNNER_EXERCISE_CATEGORIES.map(
-    (cat) => RUNNER_EXERCISES.find((e) => e.category === cat)!
-  ).filter(Boolean);
 
   return (
     <ScrollView
@@ -171,95 +144,13 @@ export default function RunnerHome() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => router.push("/runner/exercises")}
+          onPress={() => router.push("/runner/(tabs)/progress")}
           activeOpacity={0.8}
         >
-          <Ionicons name="barbell-outline" size={22} color="#FF8C00" />
-          <Text style={[styles.actionLabel, { color: colors.foreground }]}>Exercices</Text>
+          <Ionicons name="trending-up-outline" size={22} color="#AB47BC" />
+          <Text style={[styles.actionLabel, { color: colors.foreground }]}>Stats</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Exercises section */}
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Exercices & Préparation
-        </Text>
-        <TouchableOpacity onPress={() => router.push("/runner/exercises")}>
-          <Text style={[styles.seeAll, { color: RUNNER_RED }]}>Tout voir</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Category pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 10, paddingRight: 20 }}
-      >
-        {RUNNER_EXERCISE_CATEGORIES.map((cat) => {
-          const color = CATEGORY_COLORS[cat];
-          const icon = CATEGORY_ICONS[cat] as any;
-          const count = RUNNER_EXERCISES.filter((e) => e.category === cat).length;
-          return (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.catPill, { backgroundColor: color + "18", borderColor: color + "40" }]}
-              onPress={() => router.push(`/runner/exercises?category=${cat}`)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name={icon} size={16} color={color} />
-              <Text style={[styles.catPillText, { color }]}>{cat}</Text>
-              <Text style={[styles.catPillCount, { color: color + "CC" }]}>{count}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Featured exercises */}
-      {featured.map((ex) => {
-        const catColor = CATEGORY_COLORS[ex.category];
-        return (
-          <TouchableOpacity
-            key={ex.id}
-            style={[
-              styles.exCard,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-            onPress={() => router.push(`/runner/exercise/${ex.id}`)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.exThumbWrap}>
-              <Image source={{ uri: ex.coverImage }} style={styles.exThumb} resizeMode="cover" />
-              <View style={[styles.exThumbOverlay, { backgroundColor: catColor + "33" }]} />
-              <Ionicons
-                name="play-circle"
-                size={22}
-                color="rgba(255,255,255,0.9)"
-                style={styles.exThumbPlay}
-              />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={[styles.exName, { color: colors.foreground }]} numberOfLines={1}>
-                {ex.title}
-              </Text>
-              <View style={styles.exMeta}>
-                <View style={[styles.catTag, { backgroundColor: catColor + "18" }]}>
-                  <Text style={[styles.catTagText, { color: catColor }]}>{ex.category}</Text>
-                </View>
-                <Text style={[styles.exDuration, { color: colors.mutedForeground }]}>
-                  {ex.duration} min
-                </Text>
-              </View>
-              <Text
-                style={[styles.exDesc, { color: colors.mutedForeground }]}
-                numberOfLines={2}
-              >
-                {ex.description}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        );
-      })}
 
       {/* Recent runs */}
       {recentRuns.length > 0 ? (

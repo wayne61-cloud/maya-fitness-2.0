@@ -17,332 +17,341 @@ import { useApp } from "@/context/AppContext";
 const HUB_GOLD = "#FFD60A";
 const RUNNER_RED = "#E8335A";
 const WORKOUT_ORANGE = "#FF8C00";
-const YOGA_TEAL = "#26C6DA";
+const YOGA_ROSE = "#9B7B6E";
+const NUTRITION_GREEN = "#5B8C5A";
 
-function ModuleCard({
-  accent,
-  icon,
-  title,
-  subtitle,
-  metric,
-  metricLabel,
-  btnLabel,
-  onPress,
-  locked,
-}: {
-  accent: string;
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  metric: string;
-  metricLabel: string;
-  btnLabel: string;
-  onPress: () => void;
-  locked?: boolean;
-}) {
-  const colors = useColors();
-  return (
-    <TouchableOpacity
-      style={[styles.moduleCard, { backgroundColor: colors.card, borderColor: accent + "44" }]}
-      onPress={locked ? undefined : onPress}
-      activeOpacity={locked ? 1 : 0.82}
-    >
-      <View style={[styles.moduleAccentBar, { backgroundColor: accent }]} />
-      <View style={styles.moduleContent}>
-        <View style={styles.moduleTop}>
-          <View style={[styles.moduleIconWrap, { backgroundColor: accent + "20" }]}>
-            {icon}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.moduleTitle, { color: colors.foreground }]}>{title}</Text>
-            <Text style={[styles.moduleSub, { color: colors.mutedForeground }]}>{subtitle}</Text>
-          </View>
-          {locked ? (
-            <View style={[styles.lockedBadge, { backgroundColor: colors.secondary }]}>
-              <Ionicons name="lock-closed" size={12} color={colors.mutedForeground} />
-              <Text style={[styles.lockedText, { color: colors.mutedForeground }]}>Bientôt</Text>
-            </View>
-          ) : (
-            <View style={styles.metricBlock}>
-              <Text style={[styles.metricVal, { color: accent }]}>{metric}</Text>
-              <Text style={[styles.metricLbl, { color: colors.mutedForeground }]}>{metricLabel}</Text>
-            </View>
-          )}
-        </View>
-        {!locked && (
-          <TouchableOpacity
-            style={[styles.moduleBtn, { backgroundColor: accent + "18", borderColor: accent + "44" }]}
-            onPress={onPress}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.moduleBtnText, { color: accent }]}>{btnLabel}</Text>
-            <Ionicons name="arrow-forward" size={14} color={accent} />
-          </TouchableOpacity>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Bonjour";
+  if (h < 18) return "Bon après-midi";
+  return "Bonsoir";
 }
 
-function StatPill({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
-  const colors = useColors();
-  return (
-    <View style={[styles.statPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[styles.statPillIcon, { backgroundColor: color + "20" }]}>
-        <Ionicons name={icon as any} size={16} color={color} />
-      </View>
-      <Text style={[styles.statPillVal, { color: colors.foreground }]}>{value}</Text>
-      <Text style={[styles.statPillLbl, { color: colors.mutedForeground }]}>{label}</Text>
-    </View>
-  );
+function getActionDuJour(): { title: string; sub: string; label: string; color: string; image: string; route: string; icon: string } {
+  const h = new Date().getHours();
+  const dow = new Date().getDay();
+  if (dow === 0 || dow === 6) {
+    return { title: "Long Run", sub: "70 min · Modéré", label: "Commencer la course", color: RUNNER_RED, image: "https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=800&h=500&fit=crop&auto=format&q=80", route: "/runner/(tabs)/run", icon: "speedometer-outline" };
+  }
+  if (h < 11) {
+    return { title: "Full Body Express", sub: "30 min · Débutant", label: "Commencer la séance", color: WORKOUT_ORANGE, image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&h=500&fit=crop&auto=format&q=80", route: "/workout/(tabs)", icon: "barbell-outline" };
+  }
+  if (h < 16) {
+    return { title: "Course Interval", sub: "25 min · Haute intensité", label: "Démarrer le run", color: RUNNER_RED, image: "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=800&h=500&fit=crop&auto=format&q=80", route: "/runner/(tabs)/run", icon: "speedometer-outline" };
+  }
+  if (h < 20) {
+    return { title: "Flow Yoga Soir", sub: "20 min · Zen · Récupération", label: "Commencer le yoga", color: YOGA_ROSE, image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&h=500&fit=crop&auto=format&q=80", route: "/yoga/(tabs)", icon: "flower-outline" };
+  }
+  return { title: "Méditation & Relaxation", sub: "15 min · Pleine conscience", label: "Se détendre", color: YOGA_ROSE, image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=500&fit=crop&auto=format&q=80", route: "/yoga/(tabs)", icon: "cloud-outline" };
 }
 
-export default function HubDashboard() {
+const MODULES = [
+  {
+    title: "Maya Runner",
+    sub: "GPS • Routes • Progression",
+    color: RUNNER_RED,
+    route: "/runner/(tabs)",
+    image: "https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=600&h=400&fit=crop&auto=format&q=80",
+    icon: "speedometer-outline",
+  },
+  {
+    title: "Maya Workout",
+    sub: "Musculation • Séances • Exercices",
+    color: WORKOUT_ORANGE,
+    route: "/workout/(tabs)",
+    image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&h=400&fit=crop&auto=format&q=80",
+    icon: "barbell-outline",
+  },
+  {
+    title: "Maya Yoga",
+    sub: "Pilates • Yoga • Méditation",
+    color: YOGA_ROSE,
+    route: "/yoga/(tabs)",
+    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop&auto=format&q=80",
+    icon: "flower-outline",
+  },
+  {
+    title: "Maya Nutrition",
+    sub: "Recettes • Menus • Calories",
+    color: NUTRITION_GREEN,
+    route: "/nutrition/(tabs)",
+    image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=600&h=400&fit=crop&auto=format&q=80",
+    icon: "restaurant-outline",
+  },
+];
+
+export default function HubHome() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const {
     profile,
-    runs,
-    workouts,
-    weeklyDistance,
-    weeklyWorkouts,
+    streak,
     todayCalories,
     todayMinutes,
     todaySessions,
-    workoutOnboarding,
+    todayCaloriesConsumed,
+    runs,
+    workouts,
+    yogaRecords,
   } = useApp();
-
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weeklyRuns = runs.filter((r) => new Date(r.date).getTime() > oneWeekAgo).length;
+  const action = getActionDuJour();
 
-  function handleOpenWorkout() {
-    if (!workoutOnboarding) {
-      router.push("/workout/onboarding");
-    } else {
-      router.push("/workout");
-    }
-  }
+  // Last activity for "reprendre" card
+  const allActivities = [
+    ...runs.map((r) => ({ type: "run", title: `Course ${(r.distance / 1000).toFixed(1)} km`, date: r.date, color: RUNNER_RED, route: "/runner/(tabs)" })),
+    ...workouts.map((w) => ({ type: "workout", title: w.title ?? "Séance workout", date: w.date, color: WORKOUT_ORANGE, route: "/workout/(tabs)" })),
+    ...yogaRecords.map((y) => ({ type: "yoga", title: y.title, date: y.date, color: YOGA_ROSE, route: "/yoga/(tabs)" })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const lastActivity = allActivities[0];
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
+  const hasActivity = todayCalories > 0 || todayMinutes > 0 || todaySessions > 0;
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[styles.container, { paddingTop: topPad + 16, paddingBottom: bottomPad + 90 }]}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: bottomPad + 90 }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
+      {/* ── HEADER ── */}
       <View style={styles.header}>
-        <View>
-          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{greeting},</Text>
-          <View style={styles.headerNameRow}>
-            <Text style={[styles.appName, { color: HUB_GOLD }]}>Maya</Text>
-            <Text style={[styles.appName, { color: colors.foreground }]}> Fitness</Text>
-          </View>
-        </View>
-        <View style={[styles.avatarWrap, { borderColor: HUB_GOLD + "60" }]}>
-          <Image
-            source={require("@/assets/images/icon.png")}
-            style={styles.avatar}
-            resizeMode="cover"
-          />
-        </View>
-      </View>
-
-      {/* Today summary */}
-      <View style={[styles.todayCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.todayHeader}>
-          <View style={styles.todayTitleRow}>
-            <View style={[styles.todayDot, { backgroundColor: HUB_GOLD }]} />
-            <Text style={[styles.todayTitle, { color: colors.foreground }]}>Aujourd'hui</Text>
-          </View>
-          <Text style={[styles.todayDate, { color: colors.mutedForeground }]}>
-            {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" })}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{getGreeting()}</Text>
+          <Text style={[styles.name, { color: colors.foreground }]}>{profile.name}</Text>
+          <Text style={[styles.phrase, { color: colors.mutedForeground }]}>
+            {streak > 0 ? `Continue sur ta lancée 💪` : "Prêt à démarrer ta journée ?"}
           </Text>
         </View>
-        <View style={styles.todayStats}>
-          <View style={styles.todayStat}>
-            <Ionicons name="flame" size={22} color={WORKOUT_ORANGE} />
-            <Text style={[styles.todayStatVal, { color: colors.foreground }]}>{todayCalories}</Text>
-            <Text style={[styles.todayStatLbl, { color: colors.mutedForeground }]}>kcal</Text>
-          </View>
-          <View style={[styles.todayDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.todayStat}>
-            <Ionicons name="time-outline" size={22} color="#4FC3F7" />
-            <Text style={[styles.todayStatVal, { color: colors.foreground }]}>{todayMinutes}</Text>
-            <Text style={[styles.todayStatLbl, { color: colors.mutedForeground }]}>min</Text>
-          </View>
-          <View style={[styles.todayDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.todayStat}>
-            <Ionicons name="checkmark-circle-outline" size={22} color={colors.success} />
-            <Text style={[styles.todayStatVal, { color: colors.foreground }]}>{todaySessions}</Text>
-            <Text style={[styles.todayStatLbl, { color: colors.mutedForeground }]}>séances</Text>
+        <View style={styles.headerRight}>
+          {streak > 0 && (
+            <View style={[styles.streakBadge, { backgroundColor: HUB_GOLD + "20", borderColor: HUB_GOLD + "60" }]}>
+              <Text style={styles.streakEmoji}>🔥</Text>
+              <Text style={[styles.streakNum, { color: HUB_GOLD }]}>{streak}</Text>
+            </View>
+          )}
+          <View style={[styles.avatarWrap, { backgroundColor: HUB_GOLD + "25" }]}>
+            <Text style={styles.avatarEmoji}>🏋️</Text>
           </View>
         </View>
       </View>
 
-      {/* Weekly stats pills */}
-      <View style={styles.pillsRow}>
-        <StatPill icon="footsteps-outline" value={`${weeklyDistance.toFixed(1)} km`} label="cette semaine" color={RUNNER_RED} />
-        <StatPill icon="barbell-outline" value={`${weeklyWorkouts} séances`} label="cette semaine" color={WORKOUT_ORANGE} />
-      </View>
-
-      {/* Modules */}
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Mes modules</Text>
-      </View>
-
-      <ModuleCard
-        accent={RUNNER_RED}
-        icon={<MaterialCommunityIcons name="run-fast" size={24} color={RUNNER_RED} />}
-        title="Maya Runner"
-        subtitle="Course à pied · GPS"
-        metric={`${weeklyDistance.toFixed(1)} km`}
-        metricLabel="cette semaine"
-        btnLabel="Commencer à courir"
-        onPress={() => router.push("/runner")}
-      />
-
-      <ModuleCard
-        accent={WORKOUT_ORANGE}
-        icon={<Ionicons name="barbell-outline" size={24} color={WORKOUT_ORANGE} />}
-        title="Maya Workout"
-        subtitle="Musculation · Séances"
-        metric={`${weeklyWorkouts} séances`}
-        metricLabel="cette semaine"
-        btnLabel={workoutOnboarding ? "S'entraîner" : "Démarrer"}
-        onPress={handleOpenWorkout}
-      />
-
-      <ModuleCard
-        accent={YOGA_TEAL}
-        icon={<MaterialCommunityIcons name="yoga" size={24} color={YOGA_TEAL} />}
-        title="Maya Yoga"
-        subtitle="Yoga · Pilates · Mobilité"
-        metric="—"
-        metricLabel="à venir"
-        btnLabel="Découvrir"
-        onPress={() => {}}
-        locked
-      />
-
-      {/* Quick tips / recommendation */}
-      {runs.length > 0 || workouts.length > 0 ? (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 8 }]}>Recommandé</Text>
+      {/* ── ACTION DU JOUR ── */}
+      <TouchableOpacity
+        style={styles.actionCard}
+        onPress={() => router.push(action.route as any)}
+        activeOpacity={0.9}
+      >
+        <Image source={{ uri: action.image }} style={styles.actionImg} resizeMode="cover" />
+        <View style={[styles.actionOverlay, { backgroundColor: "rgba(10,5,0,0.52)" }]} />
+        <View style={[styles.actionAccent, { backgroundColor: action.color }]} />
+        <View style={styles.actionContent}>
+          <View style={[styles.actionPill, { backgroundColor: action.color + "30" }]}>
+            <Text style={[styles.actionPillText, { color: action.color }]}>ACTION DU JOUR</Text>
+          </View>
+          <Text style={styles.actionTitle}>{action.title}</Text>
+          <Text style={styles.actionSub}>{action.sub}</Text>
           <TouchableOpacity
-            style={[styles.recommendCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={handleOpenWorkout}
-            activeOpacity={0.8}
+            style={[styles.actionBtn, { backgroundColor: action.color }]}
+            onPress={() => router.push(action.route as any)}
+            activeOpacity={0.85}
           >
-            <View style={[styles.recommendIcon, { backgroundColor: WORKOUT_ORANGE + "20" }]}>
-              <Ionicons name="barbell-outline" size={22} color={WORKOUT_ORANGE} />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.recommendTitle, { color: colors.foreground }]}>Push Day A — PPL</Text>
-              <Text style={[styles.recommendSub, { color: colors.mutedForeground }]}>
-                65 min · Pectoraux, Épaules, Triceps
-              </Text>
-            </View>
-            <View style={[styles.recommendBadge, { backgroundColor: WORKOUT_ORANGE + "20" }]}>
-              <Text style={[styles.recommendBadgeText, { color: WORKOUT_ORANGE }]}>420 kcal</Text>
+            <Ionicons name="play" size={14} color="#fff" />
+            <Text style={styles.actionBtnText}>{action.label}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+
+      {/* ── STATS COMPACT ── */}
+      <View style={styles.statsRow}>
+        {[
+          { label: "Actif", val: todayMinutes > 0 ? `${todayMinutes} min` : "—", icon: "time-outline", color: WORKOUT_ORANGE },
+          { label: "Brûlées", val: todayCalories > 0 ? `${todayCalories} kcal` : "—", icon: "flame-outline", color: RUNNER_RED },
+          { label: "Consommées", val: todayCaloriesConsumed > 0 ? `${todayCaloriesConsumed} kcal` : "—", icon: "restaurant-outline", color: NUTRITION_GREEN },
+          { label: "Séances", val: String(todaySessions), icon: "barbell-outline", color: HUB_GOLD },
+        ].map((s) => (
+          <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name={s.icon as any} size={14} color={s.color} />
+            <Text style={[styles.statVal, { color: colors.foreground }]}>{s.val}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* ── REPRENDRE ── */}
+      {lastActivity && (
+        <TouchableOpacity
+          style={[styles.resumeCard, { backgroundColor: colors.card, borderColor: lastActivity.color + "40", borderLeftColor: lastActivity.color }]}
+          onPress={() => router.push(lastActivity.route as any)}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.resumeDot, { backgroundColor: lastActivity.color + "20" }]}>
+            <Ionicons
+              name={lastActivity.type === "run" ? "walk-outline" : lastActivity.type === "yoga" ? "flower-outline" : "barbell-outline"}
+              size={18}
+              color={lastActivity.color}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.resumeLabel, { color: colors.mutedForeground }]}>Dernière activité</Text>
+            <Text style={[styles.resumeTitle, { color: colors.foreground }]}>{lastActivity.title}</Text>
+          </View>
+          <View style={[styles.resumeBtn, { backgroundColor: lastActivity.color }]}>
+            <Text style={styles.resumeBtnText}>Reprendre</Text>
+            <Ionicons name="arrow-forward" size={12} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* ── MODULES (HORIZONTAL SCROLL — NETFLIX STYLE) ── */}
+      <View style={styles.sectionRow}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tes modules</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 12, paddingRight: 20 }}
+        decelerationRate="fast"
+        snapToInterval={236}
+      >
+        {MODULES.map((mod) => (
+          <TouchableOpacity
+            key={mod.title}
+            style={styles.modCard}
+            onPress={() => router.push(mod.route as any)}
+            activeOpacity={0.88}
+          >
+            <Image source={{ uri: mod.image }} style={styles.modImg} resizeMode="cover" />
+            <View style={[styles.modOverlay, { backgroundColor: "rgba(5,0,0,0.48)" }]} />
+            <View style={[styles.modAccentBar, { backgroundColor: mod.color }]} />
+            <View style={styles.modContent}>
+              <View style={[styles.modIconWrap, { backgroundColor: mod.color + "30" }]}>
+                <Ionicons name={mod.icon as any} size={20} color={mod.color} />
+              </View>
+              <View>
+                <Text style={styles.modTitle}>{mod.title}</Text>
+                <Text style={styles.modSub}>{mod.sub}</Text>
+              </View>
             </View>
           </TouchableOpacity>
-        </>
-      ) : (
-        <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: HUB_GOLD + "44" }]}>
-          <Text style={[styles.welcomeTitle, { color: HUB_GOLD }]}>Bienvenue 👋</Text>
-          <Text style={[styles.welcomeText, { color: colors.mutedForeground }]}>
-            Choisis un module ci-dessus pour démarrer ton premier entraînement. Toutes tes données seront centralisées ici.
-          </Text>
+        ))}
+      </ScrollView>
+
+      {/* ── RECOMMENDATIONS ── */}
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recommandations</Text>
+      <View style={styles.recoList}>
+        {!hasActivity && (
+          <View style={[styles.recoCard, { backgroundColor: colors.card, borderColor: WORKOUT_ORANGE + "40", borderLeftColor: WORKOUT_ORANGE }]}>
+            <View style={[styles.recoIcon, { backgroundColor: WORKOUT_ORANGE + "15" }]}>
+              <Ionicons name="flash-outline" size={18} color={WORKOUT_ORANGE} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.recoTitle, { color: colors.foreground }]}>Commence ta journée</Text>
+              <Text style={[styles.recoText, { color: colors.mutedForeground }]}>Aucune activité aujourd'hui — c'est le moment idéal !</Text>
+            </View>
+          </View>
+        )}
+        {streak >= 3 && (
+          <View style={[styles.recoCard, { backgroundColor: colors.card, borderColor: HUB_GOLD + "50", borderLeftColor: HUB_GOLD }]}>
+            <View style={[styles.recoIcon, { backgroundColor: HUB_GOLD + "15" }]}>
+              <Text style={{ fontSize: 18 }}>🔥</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.recoTitle, { color: colors.foreground }]}>Série en cours : {streak} jours</Text>
+              <Text style={[styles.recoText, { color: colors.mutedForeground }]}>Tu es en feu ! Continue comme ça pour battre ton record.</Text>
+            </View>
+          </View>
+        )}
+        <View style={[styles.recoCard, { backgroundColor: colors.card, borderColor: YOGA_ROSE + "40", borderLeftColor: YOGA_ROSE }]}>
+          <View style={[styles.recoIcon, { backgroundColor: YOGA_ROSE + "15" }]}>
+            <Ionicons name="leaf-outline" size={18} color={YOGA_ROSE} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.recoTitle, { color: colors.foreground }]}>10 min de stretching</Text>
+            <Text style={[styles.recoText, { color: colors.mutedForeground }]}>Améliore ta récupération et ta flexibilité quotidiennement.</Text>
+          </View>
         </View>
-      )}
+        <TouchableOpacity
+          style={[styles.recoCard, { backgroundColor: colors.card, borderColor: NUTRITION_GREEN + "40", borderLeftColor: NUTRITION_GREEN }]}
+          onPress={() => router.push("/nutrition/(tabs)" as any)}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.recoIcon, { backgroundColor: NUTRITION_GREEN + "15" }]}>
+            <Ionicons name="restaurant-outline" size={18} color={NUTRITION_GREEN} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.recoTitle, { color: colors.foreground }]}>
+              {todayCaloriesConsumed === 0 ? "Tracker tes repas" : `${todayCaloriesConsumed} kcal consommées`}
+            </Text>
+            <Text style={[styles.recoText, { color: colors.mutedForeground }]}>
+              {todayCaloriesConsumed === 0 ? "Lance Maya Nutrition pour suivre ton alimentation." : "Continue à tracker pour optimiser tes performances."}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 20, gap: 14 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  container: { paddingHorizontal: 20, gap: 16 },
+
+  // Header
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   greeting: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  headerNameRow: { flexDirection: "row", alignItems: "baseline" },
-  appName: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  avatarWrap: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, overflow: "hidden" },
-  avatar: { width: "100%", height: "100%" },
+  name: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  phrase: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  headerRight: { flexDirection: "row", gap: 8, alignItems: "center" },
+  streakBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
+  streakEmoji: { fontSize: 14 },
+  streakNum: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  avatarWrap: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
+  avatarEmoji: { fontSize: 22 },
 
-  todayCard: {
-    borderRadius: 18, borderWidth: 1, padding: 16, gap: 14,
-  },
-  todayHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  todayTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  todayDot: { width: 8, height: 8, borderRadius: 4 },
-  todayTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  todayDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  todayStats: { flexDirection: "row", alignItems: "center" },
-  todayStat: { flex: 1, alignItems: "center", gap: 4 },
-  todayStatVal: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  todayStatLbl: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  todayDivider: { width: 1, height: 48, opacity: 0.5 },
+  // Action du jour
+  actionCard: { height: 220, borderRadius: 22, overflow: "hidden" },
+  actionImg: StyleSheet.absoluteFillObject as any,
+  actionOverlay: StyleSheet.absoluteFillObject as any,
+  actionAccent: { position: "absolute", top: 0, left: 0, width: 5, height: "100%" },
+  actionContent: { flex: 1, padding: 20, justifyContent: "flex-end", gap: 8 },
+  actionPill: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  actionPillText: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  actionTitle: { color: "#fff", fontSize: 24, fontFamily: "Inter_700Bold" },
+  actionSub: { color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Inter_400Regular" },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
+  actionBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
-  pillsRow: { flexDirection: "row", gap: 10 },
-  statPill: {
-    flex: 1, borderRadius: 14, borderWidth: 1,
-    padding: 12, alignItems: "center", gap: 6,
-  },
-  statPillIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  statPillVal: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  statPillLbl: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  // Stats
+  statsRow: { flexDirection: "row", gap: 8 },
+  statCard: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 10, alignItems: "center", gap: 3 },
+  statVal: { fontSize: 12, fontFamily: "Inter_700Bold", textAlign: "center" },
+  statLabel: { fontSize: 9, fontFamily: "Inter_400Regular", textAlign: "center" },
 
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  // Reprendre
+  resumeCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, borderWidth: 1, borderLeftWidth: 4, padding: 14 },
+  resumeDot: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  resumeLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  resumeTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  resumeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14 },
+  resumeBtnText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
-  moduleCard: {
-    borderRadius: 18, borderWidth: 1,
-    overflow: "hidden", flexDirection: "row",
-  },
-  moduleAccentBar: { width: 4 },
-  moduleContent: { flex: 1, padding: 16, gap: 12 },
-  moduleTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  moduleIconWrap: {
-    width: 46, height: 46, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-  },
-  moduleTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  moduleSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  metricBlock: { alignItems: "flex-end" },
-  metricVal: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  metricLbl: { fontSize: 10, fontFamily: "Inter_400Regular" },
-  lockedBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
-  },
-  lockedText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  moduleBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
-  },
-  moduleBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  // Modules
+  sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modCard: { width: 224, height: 144, borderRadius: 20, overflow: "hidden" },
+  modImg: { ...StyleSheet.absoluteFillObject },
+  modOverlay: StyleSheet.absoluteFillObject as any,
+  modAccentBar: { position: "absolute", bottom: 0, left: 0, right: 0, height: 3 },
+  modContent: { flex: 1, padding: 14, justifyContent: "space-between" },
+  modIconWrap: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  modTitle: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  modSub: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontFamily: "Inter_400Regular" },
 
-  recommendCard: {
-    borderRadius: 16, borderWidth: 1, padding: 14,
-    flexDirection: "row", alignItems: "center", gap: 12,
-  },
-  recommendIcon: {
-    width: 44, height: 44, borderRadius: 13,
-    alignItems: "center", justifyContent: "center",
-  },
-  recommendTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  recommendSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  recommendBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  recommendBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-
-  welcomeCard: {
-    borderRadius: 16, borderWidth: 1, padding: 20, gap: 8,
-  },
-  welcomeTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  welcomeText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  // Recommendations
+  recoList: { gap: 10 },
+  recoCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1, borderLeftWidth: 4, padding: 14 },
+  recoIcon: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  recoTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  recoText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, marginTop: 2 },
 });

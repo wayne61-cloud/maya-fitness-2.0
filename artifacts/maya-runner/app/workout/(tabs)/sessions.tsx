@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { SESSIONS } from "@/constants/workout-data";
+import { useApp } from "@/context/AppContext";
 
 const WORKOUT_ORANGE = "#FF8C00";
 
@@ -26,18 +28,54 @@ const SESSION_TYPES = ["Tout", "PPL", "Full Body", "Glutes", "Upper", "Force"];
 export default function SessionsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { customSessions, deleteCustomSession } = useApp();
   const [filter, setFilter] = useState("Tout");
 
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const filtered = SESSIONS.filter((s) => filter === "Tout" || s.type === filter);
 
+  function confirmDelete(id: string, name: string) {
+    Alert.alert("Supprimer la séance", `Supprimer "${name}" ?`, [
+      { text: "Annuler", style: "cancel" },
+      { text: "Supprimer", style: "destructive", onPress: () => deleteCustomSession(id) },
+    ]);
+  }
+
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[styles.container, { paddingTop: 12, paddingBottom: bottomPad + 90 }]}
+      style={{ flex: 1 }}
+      contentContainerStyle={[styles.container, { paddingTop: 12, paddingBottom: bottomPad + 110 }]}
       showsVerticalScrollIndicator={false}
     >
+      {/* Custom sessions */}
+      {customSessions.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Mes séances</Text>
+          {customSessions.map((cs) => (
+            <View key={cs.id} style={[styles.customCard, { backgroundColor: colors.card, borderColor: WORKOUT_ORANGE + "60", borderLeftColor: WORKOUT_ORANGE }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sessionName, { color: colors.foreground }]}>{cs.name}</Text>
+                {cs.description ? <Text style={[styles.sessionDesc, { color: colors.mutedForeground }]} numberOfLines={1}>{cs.description}</Text> : null}
+                <Text style={[styles.customMeta, { color: colors.mutedForeground }]}>
+                  {cs.exercises.length} exercices · {cs.durationMin} min
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.startBtn, { backgroundColor: WORKOUT_ORANGE }]}
+                onPress={() => Alert.alert("Démarrer", `Commencer "${cs.name}" ?`)}
+              >
+                <Ionicons name="play" size={12} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => confirmDelete(cs.id, cs.name)} style={{ paddingHorizontal: 8 }}>
+                <Ionicons name="trash-outline" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        </>
+      )}
       {/* Type filter */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
         {SESSION_TYPES.map((t) => (
@@ -122,6 +160,17 @@ export default function SessionsScreen() {
         </TouchableOpacity>
       ))}
     </ScrollView>
+
+      {/* FAB — Créer une séance */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: bottomPad + 100, backgroundColor: WORKOUT_ORANGE }]}
+        onPress={() => router.push("/workout/session/create")}
+        activeOpacity={0.88}
+      >
+        <Ionicons name="add" size={22} color="#fff" />
+        <Text style={styles.fabText}>Créer</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -153,4 +202,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
   },
   startBtnText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  customCard: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, borderLeftWidth: 4, padding: 12 },
+  customMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  divider: { height: 1, marginVertical: 4 },
+  fab: { position: "absolute", right: 20, flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 28, paddingHorizontal: 18, paddingVertical: 13, elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  fabText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });
