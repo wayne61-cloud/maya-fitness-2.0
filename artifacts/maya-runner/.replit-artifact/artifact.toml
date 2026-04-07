@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Maya Runner"
+version = "1.0.0"
+id = "artifacts/maya-runner"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 20792
+
+[services.development]
+run = "pnpm --filter @workspace/maya-runner run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/maya-runner", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/maya-runner", "run", "serve" ]
+
+[services.env]
+PORT = "20792"
+BASE_PATH = "/"

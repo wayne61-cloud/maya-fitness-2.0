@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "KgnSRqQjOVVeKYSCpAD0E"
+uri = "file://artifacts/maya-runner/assets/images/icon.png"
+type = "image"
+title = "maya runner bee icon"

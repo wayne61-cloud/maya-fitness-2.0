@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Maya Runner",
+    "slug": "maya-runner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "maya-runner",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0D0D0D"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Maya Runner utilise ta localisation pour tracer tes courses en temps réel.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Maya Runner utilise ta localisation pour tracer tes courses.",
+        "NSPhotoLibraryUsageDescription": "Maya Runner accède à tes photos pour enregistrer ta progression."
+      }
+    },
+    "android": {
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Maya Runner utilise ta localisation pour tracer tes courses en temps réel."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Maya Runner accède à tes photos pour suivre ta progression."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
