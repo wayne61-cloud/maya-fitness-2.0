@@ -261,8 +261,9 @@ export default function RunScreen() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     timerRef.current && clearInterval(timerRef.current);
     locationSubRef.current?.remove?.();
+    mapRef.current?.markRunFinished?.();
     setRunState("finished");
-    setShowSummary(true);
+    setTimeout(() => setShowSummary(true), 800);
   }
 
   async function saveRun() {
@@ -512,12 +513,12 @@ export default function RunScreen() {
                   <TouchableOpacity
                     style={[
                       styles.bigBtn,
-                      { width: 80, height: 80, borderRadius: 40, backgroundColor: isRunning ? "#E8A000" : colors.primary },
+                      { width: 64, height: 64, borderRadius: 32, backgroundColor: isRunning ? "#E8A000" : colors.primary, opacity: 0.9 },
                     ]}
                     onPress={isRunning ? pauseRun : resumeRun}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name={isRunning ? "pause" : "play"} size={34} color="#fff" />
+                    <Ionicons name={isRunning ? "pause" : "play"} size={28} color="#fff" />
                   </TouchableOpacity>
                   {isRunning && (
                     <Animated.View
