@@ -4,7 +4,6 @@ import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Modal,
   Platform,
@@ -17,6 +16,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { MapViewComponent, MapViewRef } from "@/components/MapViewComponent";
+import {
+  haversineKm,
+  isRealisticMovement,
+  snapRouteToRoads,
+  estimateCalories,
+  KalmanGPS,
+} from "@/utils/gps";
 
 type Coord = { latitude: number; longitude: number };
 type RunState = "idle" | "planning" | "running" | "paused" | "finished";
@@ -27,18 +33,6 @@ function formatDuration(s: number) {
   const sec = s % 60;
   if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
-}
-
-function haversineDistance(a: Coord, b: Coord) {
-  const R = 6371;
-  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
-  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
-  const lat1 = (a.latitude * Math.PI) / 180;
-  const lat2 = (b.latitude * Math.PI) / 180;
-  const x =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
 export default function RunScreen() {
@@ -63,6 +57,10 @@ export default function RunScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const locationSubRef = useRef<any>(null);
   const lastPositionRef = useRef<Coord | null>(null);
+  const lastPositionTimeRef = useRef<number>(0);
+  const kalmanRef = useRef<KalmanGPS | null>(null);
+  const [currentSpeedKmh, setCurrentSpeedKmh] = useState(0);
+  const [isSavingRun, setIsSavingRun] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const topPad = Platform.OS === "web" ? 72 : insets.top;
@@ -137,15 +135,19 @@ export default function RunScreen() {
 
   async function fetchCurrentLocation() {
     try {
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+      });
       const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setCurrentPosition(coord);
       lastPositionRef.current = coord;
+      kalmanRef.current = new KalmanGPS(coord.latitude, coord.longitude);
       setTimeout(() => centerOnUser(coord), 400);
     } catch {
       const coord = { latitude: 48.8566, longitude: 2.3522 };
       setCurrentPosition(coord);
       lastPositionRef.current = coord;
+      kalmanRef.current = new KalmanGPS(coord.latitude, coord.longitude);
     }
   }
 
@@ -174,11 +176,14 @@ export default function RunScreen() {
     setRecordedRoute([]);
     setDuration(0);
     setDistance(0);
+    setCurrentSpeedKmh(0);
     setFollowUser(true);
 
     if (currentPosition) {
       setRecordedRoute([currentPosition]);
       lastPositionRef.current = currentPosition;
+      lastPositionTimeRef.current = Date.now();
+      kalmanRef.current = new KalmanGPS(currentPosition.latitude, currentPosition.longitude);
     }
 
     timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
@@ -206,12 +211,13 @@ export default function RunScreen() {
     const sub = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 1000,
-        distanceInterval: 3,
+        timeInterval: 500,       // poll every 500ms for smoother tracking
+        distanceInterval: 1,     // trigger on 1m movement
+        mayShowUserSettingsDialog: true,
       },
       (loc) => {
-        const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-        updatePosition(coord, loc.coords.accuracy ?? undefined);
+        const rawCoord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        updatePosition(rawCoord, loc.coords.accuracy ?? undefined, loc.coords.speed ?? undefined);
         if (loc.coords.heading != null && loc.coords.heading >= 0) {
           setHeading(loc.coords.heading);
         }
@@ -221,25 +227,56 @@ export default function RunScreen() {
   }
 
   const updatePosition = useCallback(
-    (coord: Coord, accuracy?: number) => {
-      // Reject highly inaccurate readings (GPS glitch / indoors)
-      if (accuracy != null && accuracy > 35) return;
+    (rawCoord: Coord, accuracy?: number, speedMs?: number) => {
+      // 1. Reject readings with very poor accuracy (indoor / satellite loss)
+      const acc = accuracy ?? 15;
+      if (acc > 40) return;
 
-      setCurrentPosition(coord);
+      // 2. Apply Kalman filter to smooth out GPS noise
+      let smoothed: Coord = rawCoord;
+      if (kalmanRef.current) {
+        smoothed = kalmanRef.current.update(rawCoord.latitude, rawCoord.longitude, acc);
+      }
+
+      // 3. Update current displayed position
+      setCurrentPosition(smoothed);
+
+      // 4. Update live speed
+      if (speedMs != null && speedMs >= 0) {
+        setCurrentSpeedKmh(Math.round(speedMs * 3.6 * 10) / 10);
+      }
+
+      // 5. Validate movement before adding to route
       if (lastPositionRef.current) {
-        const d = haversineDistance(lastPositionRef.current, coord);
-        // Accept only realistic movement: >3m (noise floor) and <150m (glitch filter)
-        if (d > 0.003 && d < 0.15) {
-          setDistance((prev) => prev + d);
-          setRecordedRoute((prev) => [...prev, coord]);
-          lastPositionRef.current = coord;
+        const now = Date.now();
+        const elapsed = now - lastPositionTimeRef.current;
+        const distKm = haversineKm(lastPositionRef.current, smoothed);
+
+        // Only record if movement is realistic for running
+        if (isRealisticMovement(distKm, elapsed)) {
+          setDistance((prev) => prev + distKm);
+          setRecordedRoute((prev) => [...prev, smoothed]);
+          lastPositionRef.current = smoothed;
+          lastPositionTimeRef.current = now;
+
+          // Update speed from position if not provided by GPS
+          if (speedMs == null) {
+            const spd = (distKm * 3600000) / elapsed;
+            setCurrentSpeedKmh(Math.round(spd * 10) / 10);
+          }
+        } else if (distKm < 0.002) {
+          // Still / tiny movement — update position display but don't add to route
+          lastPositionTimeRef.current = now;
         }
       } else {
-        lastPositionRef.current = coord;
-        setRecordedRoute([coord]);
+        lastPositionRef.current = smoothed;
+        lastPositionTimeRef.current = Date.now();
+        setRecordedRoute([smoothed]);
       }
+
+      // 6. Follow user on map
       if (followUser) {
-        mapRef.current?.animateCamera({ center: coord, zoom: 17 }, { duration: 400 });
+        mapRef.current?.animateCamera({ center: smoothed, zoom: 17 }, { duration: 300 });
       }
     },
     [followUser]
@@ -255,6 +292,14 @@ export default function RunScreen() {
   async function resumeRun() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setRunState("running");
+    // Re-init Kalman from last known position so there's no jump
+    if (lastPositionRef.current) {
+      kalmanRef.current = new KalmanGPS(
+        lastPositionRef.current.latitude,
+        lastPositionRef.current.longitude
+      );
+    }
+    lastPositionTimeRef.current = Date.now();
     timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
     if (Platform.OS === "web") startWebTracking();
     else startNativeTracking();
@@ -270,8 +315,20 @@ export default function RunScreen() {
   }
 
   async function saveRun() {
+    setIsSavingRun(true);
     const pace = distance > 0 ? duration / 60 / distance : 0;
-    const calories = Math.round(distance * 70);
+    const calories = estimateCalories(distance, duration, 70);
+
+    // OSRM map matching: snap recorded route to nearest roads
+    let finalRoute = recordedRoute;
+    try {
+      if (recordedRoute.length >= 2) {
+        finalRoute = await snapRouteToRoads(recordedRoute);
+      }
+    } catch {
+      finalRoute = recordedRoute; // fallback to raw route
+    }
+
     await addRun({
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       date: new Date().toISOString(),
@@ -279,13 +336,15 @@ export default function RunScreen() {
       duration,
       pace,
       calories,
-      route: recordedRoute,
+      route: finalRoute,
       plannedRoute: plannedRoute.length > 0 ? plannedRoute : undefined,
       title: "Course libre",
     });
+    setIsSavingRun(false);
     setShowSummary(false);
     setRunState("idle");
     setRecordedRoute([]);
+    setCurrentSpeedKmh(0);
     mapRef.current?.clearPlan();
     setPlannedRoute([]);
     setPlannedDistanceKm(0);
@@ -384,7 +443,12 @@ export default function RunScreen() {
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBlock}>
-                  <Text style={[styles.statBig, { color: colors.accent }]}>{Math.round(distance * 70)}</Text>
+                  <Text style={[styles.statBig, { color: "#4FC3F7" }]}>{currentSpeedKmh.toFixed(1)}</Text>
+                  <Text style={styles.statUnit}>km/h</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statBlock}>
+                  <Text style={[styles.statBig, { color: colors.accent }]}>{estimateCalories(distance, duration)}</Text>
                   <Text style={styles.statUnit}>kcal</Text>
                 </View>
               </View>
@@ -568,12 +632,22 @@ export default function RunScreen() {
               <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Ignorer</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+              style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: isSavingRun ? 0.7 : 1 }]}
               onPress={saveRun}
+              disabled={isSavingRun}
               activeOpacity={0.85}
             >
-              <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-              <Text style={styles.saveBtnText}>Sauvegarder</Text>
+              {isSavingRun ? (
+                <>
+                  <Animated.View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: "#fff", borderTopColor: "transparent" }} />
+                  <Text style={styles.saveBtnText}>Snap route...</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                  <Text style={styles.saveBtnText}>Sauvegarder</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
