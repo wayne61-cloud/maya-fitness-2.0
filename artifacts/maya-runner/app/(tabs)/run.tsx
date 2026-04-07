@@ -41,19 +41,6 @@ function haversineDistance(a: Coord, b: Coord) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-function smoothCoords(coords: Coord[], windowSize = 3): Coord[] {
-  if (coords.length < 3) return coords;
-  return coords.map((c, i) => {
-    const start = Math.max(0, i - Math.floor(windowSize / 2));
-    const end = Math.min(coords.length - 1, i + Math.floor(windowSize / 2));
-    const slice = coords.slice(start, end + 1);
-    return {
-      latitude: slice.reduce((a, b) => a + b.latitude, 0) / slice.length,
-      longitude: slice.reduce((a, b) => a + b.longitude, 0) / slice.length,
-    };
-  });
-}
-
 export default function RunScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -63,11 +50,13 @@ export default function RunScreen() {
   const [currentPosition, setCurrentPosition] = useState<Coord | null>(null);
   const [recordedRoute, setRecordedRoute] = useState<Coord[]>([]);
   const [plannedRoute, setPlannedRoute] = useState<Coord[]>([]);
+  const [plannedDistanceKm, setPlannedDistanceKm] = useState(0);
   const [duration, setDuration] = useState(0);
   const [distance, setDistance] = useState(0);
   const [heading, setHeading] = useState(0);
   const [locationPermission, setLocationPermission] = useState<"unknown" | "granted" | "denied">("unknown");
   const [followUser, setFollowUser] = useState(true);
+  const [headingMode, setHeadingModeState] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
 
   const mapRef = useRef<MapViewRef>(null);
@@ -76,16 +65,22 @@ export default function RunScreen() {
   const lastPositionRef = useRef<Coord | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const topPad = Platform.OS === "web" ? 72 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  // Pulse animation
+  const isRunning = runState === "running";
+  const isPaused = runState === "paused";
+  const isIdle = runState === "idle";
+  const isPlanning = runState === "planning";
+  const isActive = isRunning || isPaused;
+
+  // Pulse animation while running
   useEffect(() => {
-    if (runState === "running") {
+    if (isRunning) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.5, duration: 600, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.6, duration: 700, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
         ])
       ).start();
     } else {
@@ -101,6 +96,11 @@ export default function RunScreen() {
     };
   }, []);
 
+  // Sync planning mode to Leaflet
+  useEffect(() => {
+    mapRef.current?.setPlanningMode(isPlanning);
+  }, [isPlanning]);
+
   async function checkLocationPermission() {
     if (Platform.OS === "web") {
       setLocationPermission("granted");
@@ -112,23 +112,9 @@ export default function RunScreen() {
       setLocationPermission("granted");
       await fetchCurrentLocation();
     } else {
-      setLocationPermission("denied");
-    }
-  }
-
-  async function requestLocationPermission() {
-    if (Platform.OS === "web") {
-      setLocationPermission("granted");
-      getCurrentPositionWeb();
-      return;
-    }
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === "granted") {
-      setLocationPermission("granted");
-      await fetchCurrentLocation();
-    } else {
-      setLocationPermission("denied");
-      Alert.alert("Permission refusée", "L'accès à la localisation est nécessaire pour tracer ta course.");
+      const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermission(newStatus === "granted" ? "granted" : "denied");
+      if (newStatus === "granted") await fetchCurrentLocation();
     }
   }
 
@@ -139,13 +125,13 @@ export default function RunScreen() {
         const coord = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
         setCurrentPosition(coord);
         lastPositionRef.current = coord;
-        centerOnUser(coord);
+        setTimeout(() => centerOnUser(coord), 400);
       },
       () => {
         const coord = { latitude: 48.8566, longitude: 2.3522 };
         setCurrentPosition(coord);
         lastPositionRef.current = coord;
-        centerOnUser(coord);
+        setTimeout(() => centerOnUser(coord), 400);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -157,7 +143,7 @@ export default function RunScreen() {
       const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setCurrentPosition(coord);
       lastPositionRef.current = coord;
-      centerOnUser(coord);
+      setTimeout(() => centerOnUser(coord), 400);
     } catch {
       const coord = { latitude: 48.8566, longitude: 2.3522 };
       setCurrentPosition(coord);
@@ -168,22 +154,24 @@ export default function RunScreen() {
   function centerOnUser(coord?: Coord) {
     const target = coord ?? currentPosition;
     if (!target) return;
-    mapRef.current?.animateCamera({ center: target, zoom: 17, heading, pitch: runState === "running" ? 30 : 0 }, { duration: 600 });
+    mapRef.current?.animateCamera(
+      { center: target, zoom: 17, heading: headingMode ? heading : 0, pitch: isRunning ? 0 : 0 },
+      { duration: 500 }
+    );
   }
 
-  function handleMapPress(e: any) {
-    if (runState === "planning") {
-      const coord = e.nativeEvent?.coordinate;
-      if (coord) setPlannedRoute((prev) => [...prev, coord]);
-    }
+  function handlePlanUpdate(coords: Coord[], distanceKm: number) {
+    setPlannedRoute(coords);
+    setPlannedDistanceKm(distanceKm);
   }
 
   async function startRun() {
     if (locationPermission !== "granted") {
-      await requestLocationPermission();
+      await checkLocationPermission();
       return;
     }
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
     setRunState("running");
     setRecordedRoute([]);
     setDuration(0);
@@ -196,12 +184,8 @@ export default function RunScreen() {
     }
 
     timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
-
-    if (Platform.OS === "web") {
-      startWebTracking();
-    } else {
-      startNativeTracking();
-    }
+    if (Platform.OS === "web") startWebTracking();
+    else startNativeTracking();
   }
 
   function startWebTracking() {
@@ -210,7 +194,9 @@ export default function RunScreen() {
       (pos) => {
         const coord = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
         updatePosition(coord);
-        if (pos.coords.heading != null && pos.coords.heading >= 0) setHeading(pos.coords.heading);
+        if (pos.coords.heading != null && pos.coords.heading >= 0) {
+          setHeading(pos.coords.heading);
+        }
       },
       undefined,
       { enableHighAccuracy: true, maximumAge: 2000 }
@@ -224,7 +210,9 @@ export default function RunScreen() {
       (loc) => {
         const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         updatePosition(coord);
-        if (loc.coords.heading != null && loc.coords.heading >= 0) setHeading(loc.coords.heading);
+        if (loc.coords.heading != null && loc.coords.heading >= 0) {
+          setHeading(loc.coords.heading);
+        }
       }
     );
     locationSubRef.current = sub;
@@ -237,7 +225,10 @@ export default function RunScreen() {
         const d = haversineDistance(lastPositionRef.current, coord);
         if (d > 0.003) {
           setDistance((prev) => prev + d);
-          setRecordedRoute((prev) => [...prev, coord]);
+          setRecordedRoute((prev) => {
+            const next = [...prev, coord];
+            return next;
+          });
           lastPositionRef.current = coord;
         }
       } else {
@@ -245,10 +236,10 @@ export default function RunScreen() {
         setRecordedRoute([coord]);
       }
       if (followUser) {
-        mapRef.current?.animateCamera({ center: coord, heading, zoom: 17, pitch: 30 }, { duration: 400 });
+        mapRef.current?.animateCamera({ center: coord, zoom: 17 }, { duration: 400 });
       }
     },
-    [followUser, heading]
+    [followUser]
   );
 
   async function pauseRun() {
@@ -291,7 +282,9 @@ export default function RunScreen() {
     setShowSummary(false);
     setRunState("idle");
     setRecordedRoute([]);
+    mapRef.current?.clearPlan();
     setPlannedRoute([]);
+    setPlannedDistanceKm(0);
     setDistance(0);
     setDuration(0);
     router.push("/(tabs)/history");
@@ -305,6 +298,13 @@ export default function RunScreen() {
     setDuration(0);
   }
 
+  function toggleHeadingMode() {
+    const next = !headingMode;
+    setHeadingModeState(next);
+    mapRef.current?.setHeadingMode(next);
+    Haptics.selectionAsync();
+  }
+
   const pace =
     duration > 0 && distance > 0
       ? (() => {
@@ -315,29 +315,30 @@ export default function RunScreen() {
         })()
       : "--:--";
 
-  const initialRegion = (currentPosition ?? { latitude: 48.8566, longitude: 2.3522 }) && {
-    latitude: (currentPosition ?? { latitude: 48.8566, longitude: 2.3522 }).latitude,
-    longitude: (currentPosition ?? { latitude: 48.8566, longitude: 2.3522 }).longitude,
+  const initialRegion = {
+    latitude: currentPosition?.latitude ?? 48.8566,
+    longitude: currentPosition?.longitude ?? 2.3522,
     latitudeDelta: 0.005,
     longitudeDelta: 0.005,
   };
-
-  const isRunning = runState === "running";
-  const isPaused = runState === "paused";
-  const isIdle = runState === "idle";
-  const isPlanning = runState === "planning";
-  const isActive = isRunning || isPaused;
 
   return (
     <View style={{ flex: 1 }}>
       {locationPermission === "denied" ? (
         <View style={[styles.permissionScreen, { backgroundColor: colors.background, paddingTop: topPad + 20 }]}>
-          <Ionicons name="location-outline" size={64} color={colors.mutedForeground} />
+          <View style={[styles.permIcon, { backgroundColor: colors.card }]}>
+            <Ionicons name="location-outline" size={48} color={colors.primary} />
+          </View>
           <Text style={[styles.permTitle, { color: colors.foreground }]}>Localisation requise</Text>
           <Text style={[styles.permText, { color: colors.mutedForeground }]}>
             Maya Runner a besoin d'accéder à ta position pour tracer tes courses.
           </Text>
-          <TouchableOpacity style={[styles.permBtn, { backgroundColor: colors.primary }]} onPress={requestLocationPermission} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[styles.permBtn, { backgroundColor: colors.primary }]}
+            onPress={checkLocationPermission}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="locate" size={18} color="#fff" />
             <Text style={styles.permBtnText}>Autoriser la localisation</Text>
           </TouchableOpacity>
         </View>
@@ -350,123 +351,183 @@ export default function RunScreen() {
             initialRegion={initialRegion}
             showsUserLocation={locationPermission === "granted"}
             followsUserLocation={isRunning && followUser}
-            showsCompass={false}
-            showsMyLocationButton={false}
             userInterfaceStyle="dark"
             traceCoords={recordedRoute}
             plannedCoords={plannedRoute}
             userPosition={currentPosition}
             heading={heading}
+            isPlanningMode={isPlanning}
+            onPlanUpdate={handlePlanUpdate}
             onPanDrag={() => { if (isRunning) setFollowUser(false); }}
-            onPress={handleMapPress}
+            onPress={() => {}}
           />
 
-          {/* Top stats overlay */}
-          <View style={[styles.topBar, { paddingTop: topPad + 10 }]}>
+          {/* Top stats bar */}
+          <View style={[styles.topBar, { paddingTop: topPad + 8 }]}>
             {isActive ? (
-              <View style={styles.activeStats}>
+              <View style={styles.statsRow}>
                 <View style={styles.statBlock}>
                   <Text style={styles.statBig}>{distance.toFixed(2)}</Text>
-                  <Text style={styles.statLabel}>km</Text>
+                  <Text style={styles.statUnit}>km</Text>
                 </View>
-                <View style={styles.statSep} />
+                <View style={styles.statDivider} />
                 <View style={styles.statBlock}>
                   <Text style={styles.statBig}>{formatDuration(duration)}</Text>
-                  <Text style={styles.statLabel}>durée</Text>
+                  <Text style={styles.statUnit}>durée</Text>
                 </View>
-                <View style={styles.statSep} />
+                <View style={styles.statDivider} />
                 <View style={styles.statBlock}>
                   <Text style={styles.statBig}>{pace}</Text>
-                  <Text style={styles.statLabel}>/km</Text>
+                  <Text style={styles.statUnit}>/km</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statBlock}>
+                  <Text style={[styles.statBig, { color: colors.accent }]}>{Math.round(distance * 70)}</Text>
+                  <Text style={styles.statUnit}>kcal</Text>
                 </View>
               </View>
             ) : (
               <View style={styles.idleHeader}>
                 <Text style={styles.idleTitle}>
-                  {isPlanning ? "Planifier" : "Prêt à courir"}
+                  {isPlanning ? "Planifier mon parcours" : "Prêt à courir ?"}
                 </Text>
-                <Text style={styles.idleSub}>
-                  {isPlanning
-                    ? "Appuie sur la carte pour tracer ton itinéraire"
-                    : "Lance ta course ou planifie ton parcours"}
-                </Text>
+                {isPlanning && plannedDistanceKm > 0.01 ? (
+                  <Text style={[styles.idleSub, { color: "#4FC3F7" }]}>
+                    {plannedDistanceKm.toFixed(2)} km planifiés
+                  </Text>
+                ) : (
+                  <Text style={styles.idleSub}>
+                    {isPlanning
+                      ? "Appuie sur la carte pour tracer ton itinéraire"
+                      : "Lance ou planifie ta course"}
+                  </Text>
+                )}
               </View>
             )}
           </View>
 
-          {/* Locate button */}
-          <TouchableOpacity
-            style={[styles.locateBtn, { top: topPad + 90, backgroundColor: "rgba(26,26,26,0.92)" }]}
-            onPress={() => { setFollowUser(true); centerOnUser(); }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="locate-outline" size={20} color={isRunning && followUser ? colors.primary : "#fff"} />
-          </TouchableOpacity>
+          {/* Map controls (right side) */}
+          <View style={[styles.mapControls, { top: topPad + 82 }]}>
+            {/* Recentrer */}
+            <TouchableOpacity
+              style={[
+                styles.mapBtn,
+                { backgroundColor: "rgba(18,18,24,0.92)" },
+                followUser && isRunning && { borderColor: colors.primary, borderWidth: 1.5 },
+              ]}
+              onPress={() => { setFollowUser(true); centerOnUser(); }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="locate" size={18} color={followUser && isRunning ? colors.primary : "#fff"} />
+            </TouchableOpacity>
 
-          {/* Calories badge during run */}
-          {isActive && (
-            <View style={[styles.calBadge, { top: topPad + 90 + 56, backgroundColor: "rgba(26,26,26,0.92)" }]}>
-              <Ionicons name="flame-outline" size={14} color={colors.accent} />
-              <Text style={[styles.calText, { color: "#fff" }]}>{Math.round(distance * 70)} kcal</Text>
-            </View>
-          )}
+            {/* Heading mode toggle (native only really, but show on web too) */}
+            {isActive && (
+              <TouchableOpacity
+                style={[
+                  styles.mapBtn,
+                  { backgroundColor: "rgba(18,18,24,0.92)" },
+                  headingMode && { backgroundColor: colors.primary },
+                ]}
+                onPress={toggleHeadingMode}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="compass-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Bottom controls */}
           <View style={[styles.bottomControls, { paddingBottom: bottomPad + 90 }]}>
+            {/* Idle */}
             {isIdle && (
-              <View style={styles.idleButtons}>
+              <View style={styles.row}>
                 <TouchableOpacity
-                  style={[styles.planBtn, { backgroundColor: "rgba(26,26,26,0.95)", borderColor: "rgba(255,255,255,0.15)" }]}
+                  style={[styles.secBtn, { backgroundColor: "rgba(18,18,24,0.95)", borderColor: "rgba(255,255,255,0.14)" }]}
                   onPress={() => setRunState("planning")}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="map-outline" size={20} color="#fff" />
-                  <Text style={styles.planBtnText}>Planifier</Text>
+                  <Text style={styles.secBtnText}>Planifier</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.mainRunBtn, { backgroundColor: colors.primary }]}
+                  style={[styles.bigBtn, { backgroundColor: colors.primary }]}
                   onPress={startRun}
                   activeOpacity={0.85}
                 >
-                  <MaterialCommunityIcons name="run-fast" size={30} color="#fff" />
+                  <MaterialCommunityIcons name="run-fast" size={32} color="#fff" />
                 </TouchableOpacity>
               </View>
             )}
 
+            {/* Planning mode */}
             {isPlanning && (
-              <View style={styles.planningButtons}>
-                <TouchableOpacity style={[styles.smallBtn, { backgroundColor: "rgba(26,26,26,0.95)", borderColor: "rgba(255,255,255,0.15)" }]} onPress={() => setPlannedRoute((p) => p.slice(0, -1))} activeOpacity={0.8}>
-                  <Ionicons name="arrow-undo" size={20} color="#fff" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.smallBtn, { backgroundColor: "rgba(26,26,26,0.95)", borderColor: "rgba(255,255,255,0.15)" }]} onPress={() => setPlannedRoute([])} activeOpacity={0.8}>
-                  <Ionicons name="trash-outline" size={20} color={colors.destructive} />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.mainRunBtn, { backgroundColor: colors.primary }]} onPress={startRun} activeOpacity={0.85}>
-                  <MaterialCommunityIcons name="run-fast" size={30} color="#fff" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.smallBtn, { backgroundColor: "rgba(26,26,26,0.95)", borderColor: "rgba(255,255,255,0.15)" }]} onPress={() => setRunState("idle")} activeOpacity={0.8}>
-                  <Ionicons name="close" size={20} color="#fff" />
-                </TouchableOpacity>
+              <View style={styles.column}>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[styles.iconBtn, { backgroundColor: "rgba(18,18,24,0.95)", borderColor: "rgba(255,255,255,0.14)" }]}
+                    onPress={() => mapRef.current?.undoLastPlanPoint()}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="arrow-undo-outline" size={20} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.iconBtn, { backgroundColor: "rgba(18,18,24,0.95)", borderColor: "rgba(255,255,255,0.14)" }]}
+                    onPress={() => { mapRef.current?.clearPlan(); setPlannedDistanceKm(0); }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.destructive} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.bigBtn, { backgroundColor: colors.primary }]}
+                    onPress={startRun}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialCommunityIcons name="run-fast" size={32} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.iconBtn, { backgroundColor: "rgba(18,18,24,0.95)", borderColor: "rgba(255,255,255,0.14)" }]}
+                    onPress={() => { setRunState("idle"); mapRef.current?.setPlanningMode(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="close" size={20} color="#fff" />
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
+            {/* Running / Paused */}
             {isActive && (
-              <View style={styles.runningButtons}>
+              <View style={styles.row}>
                 {isPaused && (
-                  <TouchableOpacity style={[styles.stopBtn, { backgroundColor: colors.destructive }]} onPress={stopRun} activeOpacity={0.8}>
-                    <Ionicons name="stop" size={24} color="#fff" />
+                  <TouchableOpacity
+                    style={[styles.stopBtn, { backgroundColor: colors.destructive }]}
+                    onPress={stopRun}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="stop" size={26} color="#fff" />
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  style={[styles.mainRunBtn, { backgroundColor: isRunning ? colors.warning : colors.primary, width: 80, height: 80, borderRadius: 40 }]}
-                  onPress={isRunning ? pauseRun : resumeRun}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name={isRunning ? "pause" : "play"} size={32} color="#fff" />
-                </TouchableOpacity>
-                {isRunning && (
-                  <Animated.View style={[styles.recDot, { backgroundColor: colors.primary, transform: [{ scale: pulseAnim }] }]} />
-                )}
+                <View style={{ position: "relative" }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.bigBtn,
+                      { width: 80, height: 80, borderRadius: 40, backgroundColor: isRunning ? "#E8A000" : colors.primary },
+                    ]}
+                    onPress={isRunning ? pauseRun : resumeRun}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name={isRunning ? "pause" : "play"} size={34} color="#fff" />
+                  </TouchableOpacity>
+                  {isRunning && (
+                    <Animated.View
+                      style={[
+                        styles.recPulse,
+                        { backgroundColor: colors.primary, transform: [{ scale: pulseAnim }] },
+                      ]}
+                    />
+                  )}
+                </View>
               </View>
             )}
           </View>
@@ -475,41 +536,49 @@ export default function RunScreen() {
 
       {/* Summary modal */}
       <Modal visible={showSummary} animationType="slide" presentationStyle="pageSheet">
-        <View style={[styles.summaryModal, { backgroundColor: colors.background, paddingTop: insets.top + 24 }]}>
-          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>Résumé de course</Text>
+        <View style={[styles.modal, { backgroundColor: colors.background, paddingTop: (insets.top || 24) + 16 }]}>
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>Résumé de course</Text>
 
           <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
+              <View style={styles.summaryCell}>
                 <Text style={[styles.summaryVal, { color: colors.primary }]}>{distance.toFixed(2)}</Text>
-                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>km</Text>
+                <Text style={[styles.summaryLbl, { color: colors.mutedForeground }]}>kilomètres</Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
+              <View style={styles.summaryCell}>
                 <Text style={[styles.summaryVal, { color: colors.accent }]}>{formatDuration(duration)}</Text>
-                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>durée</Text>
+                <Text style={[styles.summaryLbl, { color: colors.mutedForeground }]}>durée</Text>
               </View>
             </View>
-            <View style={[{ height: 1, backgroundColor: colors.border }]} />
+            <View style={{ height: 1, backgroundColor: colors.border }} />
             <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
+              <View style={styles.summaryCell}>
                 <Text style={[styles.summaryVal, { color: colors.success }]}>{pace}</Text>
-                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>allure /km</Text>
+                <Text style={[styles.summaryLbl, { color: colors.mutedForeground }]}>allure /km</Text>
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryVal, { color: colors.warning }]}>{Math.round(distance * 70)}</Text>
-                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>kcal</Text>
+              <View style={styles.summaryCell}>
+                <Text style={[styles.summaryVal, { color: "#FFCA28" }]}>{Math.round(distance * 70)}</Text>
+                <Text style={[styles.summaryLbl, { color: colors.mutedForeground }]}>kcal brûlées</Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.summaryActions}>
-            <TouchableOpacity style={[styles.discardBtn, { borderColor: colors.border }]} onPress={discardRun} activeOpacity={0.8}>
-              <Text style={[styles.discardText, { color: colors.mutedForeground }]}>Annuler</Text>
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.cancelBtn, { borderColor: colors.border }]}
+              onPress={discardRun}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Ignorer</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={saveRun} activeOpacity={0.85}>
-              <Ionicons name="save-outline" size={18} color="#fff" />
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+              onPress={saveRun}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
               <Text style={styles.saveBtnText}>Sauvegarder</Text>
             </TouchableOpacity>
           </View>
@@ -521,147 +590,101 @@ export default function RunScreen() {
 
 const styles = StyleSheet.create({
   permissionScreen: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 16,
+    flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 36, gap: 18,
+  },
+  permIcon: {
+    width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center",
   },
   permTitle: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
-  permText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
-  permBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 30, marginTop: 8 },
-  permBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  topBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    backgroundColor: "rgba(13,13,13,0.85)",
+  permText: {
+    fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22,
   },
-  activeStats: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingTop: 6,
+  permBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 28, paddingVertical: 14, borderRadius: 30, marginTop: 8,
+  },
+  permBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
+  topBar: {
+    position: "absolute", top: 0, left: 0, right: 0,
+    paddingHorizontal: 20, paddingBottom: 12,
+    backgroundColor: "rgba(13,13,13,0.88)",
+  },
+  statsRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingTop: 4,
   },
   statBlock: { alignItems: "center", gap: 2 },
-  statBig: { fontSize: 28, fontFamily: "Inter_700Bold", color: "#fff" },
-  statLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: 0.8 },
-  statSep: { width: 1, height: 36, backgroundColor: "rgba(255,255,255,0.12)" },
-  idleHeader: { alignItems: "center", paddingVertical: 10, gap: 4 },
-  idleTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
-  idleSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", textAlign: "center" },
-  locateBtn: {
-    position: "absolute",
-    right: 14,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
+  statBig: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#fff" },
+  statUnit: {
+    fontSize: 10, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 0.8,
   },
-  calBadge: {
-    position: "absolute",
-    right: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+  statDivider: { width: 1, height: 32, backgroundColor: "rgba(255,255,255,0.1)" },
+  idleHeader: { alignItems: "center", paddingVertical: 8, gap: 4 },
+  idleTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
+  idleSub: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.55)", textAlign: "center",
   },
-  calText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  mapControls: {
+    position: "absolute", right: 14, gap: 10, alignItems: "center",
+  },
+  mapBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: "center", justifyContent: "center",
+  },
+
   bottomControls: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    alignItems: "center", justifyContent: "center",
   },
-  idleButtons: { flexDirection: "row", alignItems: "center", gap: 16 },
-  planBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 30,
-    borderWidth: 1,
+  row: { flexDirection: "row", alignItems: "center", gap: 14 },
+  column: { alignItems: "center", gap: 10 },
+  secBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 22, paddingVertical: 15,
+    borderRadius: 30, borderWidth: 1,
   },
-  planBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  mainRunBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#E8335A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 8,
+  secBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  bigBtn: {
+    width: 72, height: 72, borderRadius: 36,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#E8335A", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.55, shadowRadius: 14, elevation: 8,
   },
-  planningButtons: { flexDirection: "row", alignItems: "center", gap: 12 },
-  smallBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  runningButtons: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 20,
+  iconBtn: {
+    width: 48, height: 48, borderRadius: 24,
+    borderWidth: 1, alignItems: "center", justifyContent: "center",
   },
   stopBtn: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 56, height: 56, borderRadius: 28,
+    alignItems: "center", justifyContent: "center",
   },
-  recDot: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+  recPulse: {
+    position: "absolute", top: -3, right: -3,
+    width: 14, height: 14, borderRadius: 7,
   },
-  summaryModal: {
-    flex: 1,
-    paddingHorizontal: 20,
-    gap: 20,
-  },
-  summaryTitle: { fontSize: 24, fontFamily: "Inter_700Bold", textAlign: "center" },
+
+  modal: { flex: 1, paddingHorizontal: 20, gap: 20 },
+  modalTitle: { fontSize: 24, fontFamily: "Inter_700Bold", textAlign: "center" },
   summaryCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   summaryRow: { flexDirection: "row", alignItems: "center" },
-  summaryItem: { flex: 1, alignItems: "center", padding: 20, gap: 4 },
+  summaryCell: { flex: 1, alignItems: "center", padding: 22, gap: 4 },
   summaryVal: { fontSize: 28, fontFamily: "Inter_700Bold" },
-  summaryLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.6 },
+  summaryLbl: { fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5 },
   summaryDivider: { width: 1, height: 50 },
-  summaryActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: "auto",
-    paddingBottom: 24,
+  modalActions: {
+    flexDirection: "row", gap: 12, marginTop: "auto" as any, paddingBottom: 32,
   },
-  discardBtn: { flex: 1, paddingVertical: 16, borderRadius: 30, borderWidth: 1, alignItems: "center" },
-  discardText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  cancelBtn: {
+    flex: 1, paddingVertical: 16, borderRadius: 30, borderWidth: 1, alignItems: "center",
+  },
+  cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   saveBtn: {
-    flex: 2,
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 30,
+    flex: 2, flexDirection: "row", gap: 8,
+    alignItems: "center", justifyContent: "center",
+    paddingVertical: 16, borderRadius: 30,
   },
   saveBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

@@ -1,0 +1,94 @@
+1. Carte non interactive
+
+👉 Si l’utilisateur ne peut pas zoomer / déplacer → perte totale de contrôle
+👉 Il ne peut pas comprendre où il est ni corriger son tracé
+
+➡️ À corriger absolument
+
+Activer pan + pinch zoom
+Ajouter un bouton “recentrer sur moi”
+2. Le tracé ne suit pas les routes
+
+👉 Là c’est très perturbant visuellement
+👉 On a l’impression que le GPS est faux ou que l’app bug
+
+Cause probable :
+
+Tu traces des lignes “droites” entre points (polyline brute)
+Pas de routing (snap-to-road)
+
+➡️ Solution
+
+Utiliser un moteur de routing (Mapbox Directions, Google Directions…)
+Activer le mode “snap to road”
+3. Tracé confus (zigzag / angles bizarres)
+
+👉 Ça donne une impression de manque de précision
+👉 Et ça casse la confiance dans l’app
+
+➡️ Améliorations
+
+Lisser le tracé
+Réduire les points inutiles
+Afficher un tracé plus épais et contrasté
+Ajouter un point de départ / arrivée clair
+4. Mode “Planifier” incompréhensible
+
+👉 Là c’est un problème de design UX pur
+
+Symptômes que tu décris :
+
+On ne voit pas ce qu’on trace
+Pas de feedback immédiat
+
+➡️ À faire
+
+Afficher le tracé en temps réel dès le premier tap
+Ajouter :
+un point initial visible
+une ligne qui suit le doigt
+Ajouter un hint visuel du type :
+👉 “Appuie pour ajouter un point”
+5. Aucun GPS / position utilisateur floue
+
+👉 Très critique pour une app de running
+
+➡️ À ajouter
+
+Bouton “📍 ma position”
+Point bleu (style Google Maps)
+Suivi en temps réel
+6. La carte ne tourne pas avec l’utilisateur
+
+👉 Ça casse complètement l’expérience running
+
+➡️ À implémenter
+
+Mode “heading mode” :
+la carte tourne selon l’orientation du téléphone
+Option toggle :
+Nord fixe
+Orientation utilisateur
+🧠 Problème global
+
+👉 Aujourd’hui ton app ressemble à un outil technique, pas à une app sportive intuitive.
+
+Tu demandes trop d’effort mental à l’utilisateur :
+
+comprendre la carte
+comprendre le tracé
+deviner ce qu’il se passe
+
+👉 Une bonne app de running doit être instinctive en 2 secondes
+
+🚀 Priorités de correction (ordre recommandé)
+✅ Ajouter GPS + position utilisateur
+✅ Rendre la carte interactive
+✅ Corriger le tracé (snap to road)
+✅ Clarifier le mode planifier (feedback visuel immédiat)
+✅ Ajouter rotation de la carte
+💡 Bonus (qui ferait une énorme diff)
+Animation du tracé qui se dessine
+Distance affichée en live pendant la planification
+Bouton “Annuler dernier point”
+Mode auto (trace en suivant ta course réelle)
