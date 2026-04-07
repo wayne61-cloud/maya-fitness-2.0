@@ -47,3 +47,14 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment variables — NEVER commit real secrets
+.env
+.env.local
+.env.*.local
+artifacts/**/.env
+artifacts/**/.env.local
+
+# Keep example env files
+!.env.example
+!artifacts/**/.env.example

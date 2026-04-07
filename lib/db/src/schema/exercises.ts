@@ -14,6 +14,9 @@ export const exercisesTable = pgTable("exercises", {
   description: text("description"),
   durationMin: integer("duration_min"),
   calories: integer("calories"),
+  instructions: jsonb("instructions").$type<string[]>().default([]),
+  benefits: jsonb("benefits").$type<string[]>().default([]),
+  tags: jsonb("tags").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
