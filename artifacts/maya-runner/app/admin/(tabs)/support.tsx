@@ -32,47 +32,6 @@ interface Ticket {
   category: string;
 }
 
-const TICKETS: Ticket[] = [
-  {
-    id: "T001", subject: "App se ferme en pleine course", user: "alice@example.com",
-    status: "ouvert", priority: "haute", date: "Aujourd'hui 08:14", category: "Bug",
-    messages: [
-      { from: "user", text: "L'application se ferme toute seule quand je cours plus de 5km. C'est très frustrant !", time: "08:14" },
-    ],
-  },
-  {
-    id: "T002", subject: "Comment supprimer mon compte ?", user: "bob@example.com",
-    status: "en_cours", priority: "normale", date: "Hier 16:32", category: "Compte",
-    messages: [
-      { from: "user", text: "Je voudrais supprimer mon compte Maya Fitness. Comment faire ?", time: "16:32" },
-      { from: "support", text: "Bonjour ! Vous pouvez supprimer votre compte depuis Profil > Paramètres > Supprimer le compte. Je reste disponible si besoin.", time: "17:04" },
-    ],
-  },
-  {
-    id: "T003", subject: "Calories pas correctes pour le pain", user: "carol@example.com",
-    status: "résolu", priority: "basse", date: "Il y a 2 jours", category: "Nutrition",
-    messages: [
-      { from: "user", text: "La valeur calorique du pain complet semble fausse (150 kcal pour 30g ?)", time: "10:22" },
-      { from: "support", text: "Merci pour votre retour ! Nous avons bien corrigé cette valeur, elle sera mise à jour dans la prochaine version.", time: "14:10" },
-    ],
-  },
-  {
-    id: "T004", subject: "Bug GPS sur iPhone 13", user: "david@example.com",
-    status: "ouvert", priority: "haute", date: "Aujourd'hui 11:45", category: "Bug",
-    messages: [
-      { from: "user", text: "Le GPS ne se lance pas sur mon iPhone 13. J'ai accepté les permissions mais ça bloque.", time: "11:45" },
-    ],
-  },
-  {
-    id: "T005", subject: "Suggestion : mode offline", user: "emma@example.com",
-    status: "fermé", priority: "basse", date: "Il y a 5 jours", category: "Suggestion",
-    messages: [
-      { from: "user", text: "Serait-il possible d'avoir un mode offline pour utiliser les séances sans internet ?", time: "09:30" },
-      { from: "support", text: "Super suggestion ! Nous l'avons ajoutée à notre roadmap. Merci !", time: "11:00" },
-    ],
-  },
-];
-
 const STATUS_COLOR: Record<TicketStatus, string> = {
   ouvert: ACCENT,
   en_cours: "#FF8C00",
@@ -88,7 +47,7 @@ const PRIORITY_COLOR: Record<TicketPriority, string> = {
 
 export default function AdminSupport() {
   const insets = useSafeAreaInsets();
-  const [tickets, setTickets] = useState(TICKETS);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | TicketStatus>("all");
   const [reply, setReply] = useState("");
@@ -103,23 +62,13 @@ export default function AdminSupport() {
     setTickets((prev) =>
       prev.map((t) =>
         t.id === ticketId
-          ? {
-              ...t,
-              status: "en_cours" as const,
-              messages: [...t.messages, { from: "support" as const, text: reply.trim(), time }],
-            }
+          ? { ...t, status: "en_cours" as const, messages: [...t.messages, { from: "support" as const, text: reply.trim(), time }] }
           : t
       )
     );
     if (selected?.id === ticketId) {
       setSelected((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: "en_cours",
-              messages: [...prev.messages, { from: "support", text: reply.trim(), time }],
-            }
-          : null
+        prev ? { ...prev, status: "en_cours", messages: [...prev.messages, { from: "support", text: reply.trim(), time }] } : null
       );
     }
     setReply("");
@@ -145,7 +94,7 @@ export default function AdminSupport() {
         {(["all", "ouvert", "en_cours", "résolu"] as const).map((f) => (
           <TouchableOpacity
             key={f}
-            style={[styles.filterChip, filterStatus === f && { backgroundColor: (STATUS_COLOR[f as TicketStatus] ?? "#FFD60A") + "22", borderColor: (STATUS_COLOR[f as TicketStatus] ?? "#FFD60A") + "55" }]}
+            style={[styles.filterChip, filterStatus === f && { backgroundColor: (STATUS_COLOR[f as TicketStatus] ?? YELLOW) + "22", borderColor: (STATUS_COLOR[f as TicketStatus] ?? YELLOW) + "55" }]}
             onPress={() => setFilterStatus(f)}
           >
             <Text style={[styles.filterText, filterStatus === f && { color: STATUS_COLOR[f as TicketStatus] ?? YELLOW }]}>
@@ -158,8 +107,17 @@ export default function AdminSupport() {
       <FlatList
         data={filtered}
         keyExtractor={(t) => t.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, flexGrow: 1 }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Ionicons name="headset-outline" size={52} color="#2A2A2A" />
+            <Text style={styles.emptyTitle}>Aucun ticket</Text>
+            <Text style={styles.emptyHint}>
+              Les demandes de support des utilisateurs apparaîtront ici
+            </Text>
+          </View>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.ticketCard} onPress={() => setSelected(item)} activeOpacity={0.85}>
             <View style={styles.ticketTop}>
@@ -183,7 +141,6 @@ export default function AdminSupport() {
         )}
       />
 
-      {/* Ticket Detail Modal */}
       <Modal visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
         <View style={{ flex: 1, backgroundColor: BG }}>
           <View style={[styles.modalHeader, { paddingTop: insets.top + 16 }]}>
@@ -194,11 +151,11 @@ export default function AdminSupport() {
               <Text style={styles.modalTitle} numberOfLines={1}>{selected?.subject}</Text>
               <Text style={styles.modalUser}>{selected?.user}</Text>
             </View>
-            {selected?.status === "en_cours" || selected?.status === "ouvert" ? (
+            {(selected?.status === "en_cours" || selected?.status === "ouvert") && (
               <TouchableOpacity style={styles.resolveBtn} onPress={() => resolveTicket(selected!.id)}>
                 <Text style={styles.resolveBtnText}>Résoudre</Text>
               </TouchableOpacity>
-            ) : null}
+            )}
           </View>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
@@ -246,6 +203,9 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 16, flexWrap: "wrap" },
   filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: BORDER },
   filterText: { fontSize: 12, color: "#666", fontFamily: "Inter_500Medium" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 80 },
+  emptyTitle: { fontSize: 16, color: "#555", fontFamily: "Inter_600SemiBold", marginTop: 16 },
+  emptyHint: { fontSize: 13, color: "#333", fontFamily: "Inter_400Regular", marginTop: 8, textAlign: "center", paddingHorizontal: 32 },
   ticketCard: { backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER },
   ticketTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   ticketId: { fontSize: 12, color: "#555", fontFamily: "Inter_600SemiBold" },

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,9 +33,15 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setError(null);
-    const result = await login(email, password);
+    const result = await login(email.trim(), password);
     setLoading(false);
-    if (!result.success) {
+    if (result.success) {
+      if (result.role === "admin" || result.role === "moderator" || result.role === "support") {
+        router.replace("/admin");
+      } else {
+        router.replace("/(tabs)");
+      }
+    } else {
       setError(result.error ?? "Erreur de connexion");
     }
   }
@@ -51,7 +59,6 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo */}
         <View style={styles.logoWrap}>
           <Image
             source={{ uri: "https://cdn-icons-png.flaticon.com/512/2382/2382533.png" }}
@@ -61,11 +68,9 @@ export default function LoginScreen() {
           <Text style={styles.tagline}>Ton coach fitness intelligent</Text>
         </View>
 
-        {/* Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Connexion</Text>
 
-          {/* Email */}
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>Email</Text>
             <View style={styles.inputRow}>
@@ -84,7 +89,6 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* Password */}
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>Mot de passe</Text>
             <View style={styles.inputRow}>
@@ -109,7 +113,6 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* Error */}
           {error && (
             <View style={styles.errorBox}>
               <Ionicons name="alert-circle" size={16} color="#E8335A" />
@@ -117,7 +120,6 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {/* Submit */}
           <TouchableOpacity
             style={[styles.btn, loading && { opacity: 0.7 }]}
             onPress={handleLogin}
@@ -132,36 +134,10 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Demo hints */}
-        <View style={styles.demoWrap}>
-          <Text style={styles.demoTitle}>Comptes de démonstration</Text>
-          <View style={styles.demoGrid}>
-            <DemoChip email="user@maya.app" pwd="maya2024" label="Utilisateur" color="#FFD60A" />
-            <DemoChip email="admin@maya.app" pwd="admin2024" label="Admin" color="#E8335A" />
-          </View>
-          <Text style={styles.demoHint}>Appuie sur un compte pour le remplir automatiquement</Text>
-        </View>
-
         <Text style={styles.version}>Maya Fitness v2.0</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
-
-  function DemoChip({ email: e, pwd, label, color }: { email: string; pwd: string; label: string; color: string }) {
-    return (
-      <TouchableOpacity
-        style={[styles.demoChip, { borderColor: color + "55" }]}
-        onPress={() => { setEmail(e); setPassword(pwd); setError(null); }}
-        activeOpacity={0.75}
-      >
-        <View style={[styles.demoRole, { backgroundColor: color + "22" }]}>
-          <Text style={[styles.demoRoleText, { color }]}>{label}</Text>
-        </View>
-        <Text style={styles.demoEmail}>{e}</Text>
-        <Text style={styles.demoPwd}>{pwd}</Text>
-      </TouchableOpacity>
-    );
-  }
 }
 
 const styles = StyleSheet.create({
@@ -172,17 +148,17 @@ const styles = StyleSheet.create({
   },
   logoWrap: {
     alignItems: "center",
-    marginBottom: 36,
+    marginBottom: 40,
   },
   mascot: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 14,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    marginBottom: 16,
     backgroundColor: "#1A1A1A",
   },
   appName: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: "700",
     color: "#FFD60A",
     letterSpacing: -0.5,
@@ -191,7 +167,7 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 14,
     color: "#888",
-    marginTop: 4,
+    marginTop: 6,
     fontFamily: "Inter_400Regular",
   },
   card: {
@@ -199,12 +175,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#1A1A1A",
     borderRadius: 20,
     padding: 24,
-    marginBottom: 24,
+    marginBottom: 32,
     borderWidth: 1,
     borderColor: "#252525",
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
     color: "#FFFFFF",
     marginBottom: 24,
@@ -264,66 +240,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: "Inter_700Bold",
   },
-  demoWrap: {
-    width: "100%",
-    backgroundColor: "#111",
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#1E1E1E",
-  },
-  demoTitle: {
-    color: "#666",
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginBottom: 12,
-  },
-  demoGrid: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 10,
-  },
-  demoChip: {
-    flex: 1,
-    backgroundColor: "#161616",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-  },
-  demoRole: {
-    alignSelf: "flex-start",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: 8,
-  },
-  demoRoleText: {
-    fontSize: 11,
-    fontWeight: "700",
-    fontFamily: "Inter_700Bold",
-  },
-  demoEmail: {
-    color: "#CCC",
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 2,
-  },
-  demoPwd: {
-    color: "#666",
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-  },
-  demoHint: {
-    color: "#444",
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
   version: {
-    color: "#333",
+    color: "#2A2A2A",
     fontSize: 12,
     fontFamily: "Inter_400Regular",
   },

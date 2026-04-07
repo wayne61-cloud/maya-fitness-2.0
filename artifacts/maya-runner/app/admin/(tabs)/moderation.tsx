@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
+  Dimensions,
   FlatList,
   Image,
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,6 +16,7 @@ const ACCENT = "#E8335A";
 const BG = "#0D0D0D";
 const CARD = "#141414";
 const BORDER = "#1E1E1E";
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
 type ContentType = "photo" | "commentaire" | "pseudo";
 type ModerationStatus = "en_attente" | "approuvé" | "supprimé";
@@ -29,14 +32,6 @@ interface Report {
   preview?: string;
 }
 
-const INITIAL_REPORTS: Report[] = [
-  { id: "r1", type: "photo", reason: "Contenu inapproprié", user: "bob@example.com", reportedBy: "alice@example.com", date: "Aujourd'hui 14:32", status: "en_attente", preview: "https://picsum.photos/200/200?random=1" },
-  { id: "r2", type: "commentaire", reason: "Spam / publicité", user: "spammer@test.com", reportedBy: "carol@example.com", date: "Aujourd'hui 11:14", status: "en_attente" },
-  { id: "r3", type: "pseudo", reason: "Pseudo offensant", user: "admin_fake@test.com", reportedBy: "david@example.com", date: "Hier 18:45", status: "en_attente" },
-  { id: "r4", type: "photo", reason: "Photo hors-sujet", user: "felix@example.com", reportedBy: "grace@example.com", date: "Hier 09:12", status: "approuvé", preview: "https://picsum.photos/200/200?random=2" },
-  { id: "r5", type: "commentaire", reason: "Harcèlement", user: "trouble@test.com", reportedBy: "emma@example.com", date: "Il y a 2 jours", status: "supprimé" },
-];
-
 const TYPE_ICON: Record<ContentType, string> = {
   photo: "image-outline",
   commentaire: "chatbubble-outline",
@@ -51,8 +46,9 @@ const STATUS_COLOR: Record<ModerationStatus, string> = {
 
 export default function AdminModeration() {
   const insets = useSafeAreaInsets();
-  const [reports, setReports] = useState(INITIAL_REPORTS);
+  const [reports, setReports] = useState<Report[]>([]);
   const [filterStatus, setFilterStatus] = useState<"all" | ModerationStatus>("en_attente");
+  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
 
   const filtered = filterStatus === "all" ? reports : reports.filter((r) => r.status === filterStatus);
   const pending = reports.filter((r) => r.status === "en_attente").length;
@@ -79,7 +75,6 @@ export default function AdminModeration() {
         </View>
       </View>
 
-      {/* Filter tabs */}
       <View style={styles.filterRow}>
         {(["en_attente", "all", "approuvé", "supprimé"] as const).map((f) => (
           <TouchableOpacity
@@ -97,12 +92,15 @@ export default function AdminModeration() {
       <FlatList
         data={filtered}
         keyExtractor={(r) => r.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, flexGrow: 1 }}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="shield-checkmark-outline" size={48} color="#333" />
-            <Text style={styles.emptyText}>Aucun signalement dans cette catégorie</Text>
+            <Ionicons name="shield-checkmark-outline" size={52} color="#2A2A2A" />
+            <Text style={styles.emptyTitle}>Aucun signalement</Text>
+            <Text style={styles.emptyHint}>
+              Les contenus signalés par les utilisateurs apparaîtront ici
+            </Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -125,7 +123,16 @@ export default function AdminModeration() {
             </View>
 
             {item.preview && (
-              <Image source={{ uri: item.preview }} style={styles.preview} resizeMode="cover" />
+              <TouchableOpacity
+                onPress={() => setLightboxUri(item.preview!)}
+                activeOpacity={0.85}
+              >
+                <Image source={{ uri: item.preview }} style={styles.preview} resizeMode="cover" />
+                <View style={styles.previewOverlay}>
+                  <Ionicons name="expand-outline" size={18} color="#FFF" />
+                  <Text style={styles.previewOverlayText}>Agrandir</Text>
+                </View>
+              </TouchableOpacity>
             )}
 
             <View style={styles.reportInfo}>
@@ -158,6 +165,36 @@ export default function AdminModeration() {
           </View>
         )}
       />
+
+      {/* Photo lightbox */}
+      <Modal
+        visible={lightboxUri !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLightboxUri(null)}
+      >
+        <View style={styles.lightboxBg}>
+          <TouchableOpacity
+            style={styles.lightboxClose}
+            onPress={() => setLightboxUri(null)}
+          >
+            <Ionicons name="close" size={28} color="#FFF" />
+          </TouchableOpacity>
+          {lightboxUri && (
+            <Image
+              source={{ uri: lightboxUri }}
+              style={styles.lightboxImage}
+              resizeMode="contain"
+            />
+          )}
+          <Text style={styles.lightboxHint}>Appuie n'importe où pour fermer</Text>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setLightboxUri(null)}
+            activeOpacity={1}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -171,6 +208,9 @@ const styles = StyleSheet.create({
   filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: BORDER },
   filterChipActive: { backgroundColor: "#333", borderColor: "#555" },
   filterText: { fontSize: 12, color: "#666", fontFamily: "Inter_500Medium" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 80 },
+  emptyTitle: { fontSize: 16, color: "#555", fontFamily: "Inter_600SemiBold", marginTop: 16 },
+  emptyHint: { fontSize: 13, color: "#333", fontFamily: "Inter_400Regular", marginTop: 8, textAlign: "center", paddingHorizontal: 32 },
   reportCard: { backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER },
   reportHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   typeIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center" },
@@ -178,8 +218,21 @@ const styles = StyleSheet.create({
   reportDate: { fontSize: 12, color: "#555", fontFamily: "Inter_400Regular" },
   statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   statusText: { fontSize: 11, fontWeight: "700", fontFamily: "Inter_700Bold" },
-  preview: { width: "100%", height: 120, borderRadius: 10, marginBottom: 12 },
-  reportInfo: { backgroundColor: "#0D0D0D", borderRadius: 10, padding: 12, marginBottom: 12 },
+  preview: { width: "100%", height: 140, borderRadius: 10, marginBottom: 0 },
+  previewOverlay: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  previewOverlayText: { color: "#FFF", fontSize: 12, fontFamily: "Inter_500Medium" },
+  reportInfo: { backgroundColor: "#0D0D0D", borderRadius: 10, padding: 12, marginBottom: 12, marginTop: 12 },
   infoRow: { flexDirection: "row", paddingVertical: 4 },
   infoLabel: { width: 90, fontSize: 12, color: "#555", fontFamily: "Inter_400Regular" },
   infoValue: { flex: 1, fontSize: 12, color: "#CCC", fontFamily: "Inter_500Medium" },
@@ -188,6 +241,8 @@ const styles = StyleSheet.create({
   approveBtnText: { color: "#5B8C5A", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   deleteBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: ACCENT + "22", borderRadius: 10, paddingVertical: 10, borderWidth: 1, borderColor: ACCENT + "44" },
   deleteBtnText: { color: ACCENT, fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  empty: { alignItems: "center", justifyContent: "center", paddingVertical: 60 },
-  emptyText: { color: "#444", fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 12, textAlign: "center" },
+  lightboxBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center" },
+  lightboxClose: { position: "absolute", top: 50, right: 20, zIndex: 10, padding: 8, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 20 },
+  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.75, zIndex: 5 },
+  lightboxHint: { position: "absolute", bottom: 40, color: "#555", fontSize: 13, fontFamily: "Inter_400Regular", zIndex: 5 },
 });

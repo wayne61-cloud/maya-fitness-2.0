@@ -6,10 +6,9 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -23,14 +22,25 @@ const queryClient = new QueryClient();
 
 function AuthGuard() {
   const { user, isLoading } = useAuth();
+  const segments = useSegments();
 
   if (isLoading) return null;
 
-  if (!user) return <Redirect href="/login" />;
+  const isOnLogin = segments[0] === "login";
+  const isOnAdmin = segments[0] === "admin";
+  const isAdminRole = user?.role === "admin" || user?.role === "moderator" || user?.role === "support";
 
-  if (user.role === "admin" || user.role === "moderator" || user.role === "support") {
-    return <Redirect href="/admin" />;
-  }
+  // Not logged in and not on login → redirect to login
+  if (!user && !isOnLogin) return <Redirect href="/login" />;
+
+  // Logged in admin on login page → send to admin
+  if (user && isOnLogin && isAdminRole) return <Redirect href="/admin" />;
+
+  // Logged in user on login page → send to app
+  if (user && isOnLogin && !isAdminRole) return <Redirect href="/(tabs)" />;
+
+  // Admin role on non-admin page → redirect to admin
+  if (user && isAdminRole && !isOnAdmin) return <Redirect href="/admin" />;
 
   return null;
 }
