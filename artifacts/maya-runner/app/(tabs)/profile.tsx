@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 
 const HUB_GOLD = "#FFD60A";
 const RUNNER_RED = "#E8335A";
@@ -34,6 +35,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { profile, updateProfile, runs, workouts, totalDistance } = useApp();
+  const { logout } = useAuth();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...profile });
@@ -222,6 +224,22 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        {/* Logout */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={() =>
+            Alert.alert("Déconnexion", "Tu vas être déconnecté de Maya Fitness.", [
+              { text: "Annuler", style: "cancel" },
+              { text: "Se déconnecter", style: "destructive", onPress: logout },
+            ])
+          }
+          activeOpacity={0.8}
+        >
+          <Ionicons name="log-out-outline" size={20} color={RUNNER_RED} />
+          <Text style={styles.logoutText}>Se déconnecter</Text>
+        </TouchableOpacity>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -272,4 +290,21 @@ const styles = StyleSheet.create({
     gap: 8, paddingVertical: 13, borderRadius: 14, marginTop: 6,
   },
   saveBtnText: { color: "#000", fontSize: 15, fontFamily: "Inter_700Bold" },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 15,
+    borderRadius: 14,
+    backgroundColor: "#E8335A18",
+    borderWidth: 1,
+    borderColor: "#E8335A44",
+    marginTop: 4,
+  },
+  logoutText: {
+    color: "#E8335A",
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
 });
