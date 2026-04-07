@@ -193,23 +193,27 @@ export default function RunScreen() {
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const coord = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        updatePosition(coord);
+        updatePosition(coord, pos.coords.accuracy ?? undefined);
         if (pos.coords.heading != null && pos.coords.heading >= 0) {
           setHeading(pos.coords.heading);
         }
       },
-      undefined,
-      { enableHighAccuracy: true, maximumAge: 2000 }
+      (err) => console.warn("[GPS] Web error:", err.message),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
     );
     locationSubRef.current = { remove: () => navigator.geolocation.clearWatch(watchId) };
   }
 
   async function startNativeTracking() {
     const sub = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 5 },
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 1000,
+        distanceInterval: 3,
+      },
       (loc) => {
         const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-        updatePosition(coord);
+        updatePosition(coord, loc.coords.accuracy ?? undefined);
         if (loc.coords.heading != null && loc.coords.heading >= 0) {
           setHeading(loc.coords.heading);
         }
@@ -219,16 +223,17 @@ export default function RunScreen() {
   }
 
   const updatePosition = useCallback(
-    (coord: Coord) => {
+    (coord: Coord, accuracy?: number) => {
+      // Reject highly inaccurate readings (GPS glitch / indoors)
+      if (accuracy != null && accuracy > 35) return;
+
       setCurrentPosition(coord);
       if (lastPositionRef.current) {
         const d = haversineDistance(lastPositionRef.current, coord);
-        if (d > 0.003) {
+        // Accept only realistic movement: >3m (noise floor) and <150m (glitch filter)
+        if (d > 0.003 && d < 0.15) {
           setDistance((prev) => prev + d);
-          setRecordedRoute((prev) => {
-            const next = [...prev, coord];
-            return next;
-          });
+          setRecordedRoute((prev) => [...prev, coord]);
           lastPositionRef.current = coord;
         }
       } else {
