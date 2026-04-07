@@ -108,7 +108,7 @@ export default function ProfileScreen() {
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Statistiques globales</Text>
         <View style={styles.statsGrid}>
           {[
-            { icon: "footsteps-outline", val: `${totalDistance.toFixed(1)} km`, lbl: "Distance totale", color: RUNNER_RED },
+            { icon: "walk-outline", val: `${totalDistance.toFixed(1)} km`, lbl: "Distance totale", color: RUNNER_RED },
             { icon: "barbell-outline", val: `${runs.length + workouts.length}`, lbl: "Séances totales", color: WORKOUT_ORANGE },
             { icon: "flame-outline", val: totalCal.toLocaleString(), lbl: "Calories totales", color: "#FF6B35" },
             { icon: "time-outline", val: `${Math.floor(totalTime / 3600)}h`, lbl: "Temps actif", color: "#4FC3F7" },

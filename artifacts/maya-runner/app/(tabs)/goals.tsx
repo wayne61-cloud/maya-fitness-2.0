@@ -1,7 +1,6 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,6 +16,8 @@ import { useApp } from "@/context/AppContext";
 const HUB_GOLD = "#FFD60A";
 const RUNNER_RED = "#E8335A";
 const WORKOUT_ORANGE = "#FF8C00";
+const YOGA_TAUPE = "#9B7B6E";
+const NUTRITION_GREEN = "#5B8C5A";
 
 function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = Math.min((value / Math.max(max, 1)) * 100, 100);
@@ -88,7 +89,7 @@ function GoalCard({
 export default function GoalsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { profile, updateProfile, runs, workouts, weeklyDistance, weeklyWorkouts } = useApp();
+  const { profile, updateProfile, runs, workouts, weeklyDistance, weeklyWorkouts, weeklyYoga, nutritionLog, yogaOnboarding } = useApp();
 
   const [editingGoal, setEditingGoal] = useState<string | null>(null);
   const [tempVal, setTempVal] = useState("");
@@ -102,10 +103,25 @@ export default function GoalsScreen() {
   const runningGoal = profile.weeklyGoal || 30;
   const workoutGoal = 3;
   const calorieGoal = 2000;
+  const yogaGoal = yogaOnboarding?.frequency || 3;
+  const nutritionCalGoal = 2200;
 
   const weeklyCal =
     runs.filter((r) => new Date(r.date).getTime() > oneWeekAgo).reduce((a, r) => a + r.calories, 0) +
     workouts.filter((w) => new Date(w.date).getTime() > oneWeekAgo).reduce((a, w) => a + (w.calories || 0), 0);
+
+  // Nutrition: today's consumed calories
+  const today = new Date().toISOString().substring(0, 10);
+  const todayNutritionCal = nutritionLog
+    .filter((n) => n.date.startsWith(today))
+    .reduce((a, n) => a + n.calories, 0);
+
+  // Weekly nutrition tracked days
+  const weekNutritionDays = new Set(
+    nutritionLog
+      .filter((n) => new Date(n.date).getTime() > oneWeekAgo)
+      .map((n) => n.date.substring(0, 10))
+  ).size;
 
   async function saveGoal() {
     if (editingGoal === "running") {
@@ -119,6 +135,8 @@ export default function GoalsScreen() {
     { label: "Régulier", sub: "5 fois / semaine", icon: "trending-up-outline", color: WORKOUT_ORANGE },
     { label: "Intense", sub: "7 fois / semaine", icon: "flame-outline", color: RUNNER_RED },
   ];
+
+  const totalActivities = weeklyRuns + weeklyWorkouts + weeklyYoga;
 
   return (
     <ScrollView
@@ -138,10 +156,14 @@ export default function GoalsScreen() {
         </Text>
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Progression hebdo</Text>
+      {/* ── RUNNER ── */}
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionDot, { backgroundColor: RUNNER_RED }]} />
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Maya Runner</Text>
+      </View>
 
       <GoalCard
-        icon="footsteps-outline"
+        icon="walk-outline"
         iconColor={RUNNER_RED}
         title="Distance de course"
         current={weeklyDistance.toFixed(1)}
@@ -175,6 +197,12 @@ export default function GoalsScreen() {
         </View>
       )}
 
+      {/* ── WORKOUT ── */}
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionDot, { backgroundColor: WORKOUT_ORANGE }]} />
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Maya Workout</Text>
+      </View>
+
       <GoalCard
         icon="barbell-outline"
         iconColor={WORKOUT_ORANGE}
@@ -199,20 +227,74 @@ export default function GoalsScreen() {
         colors={colors}
       />
 
+      {/* ── YOGA ── */}
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionDot, { backgroundColor: YOGA_TAUPE }]} />
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Maya Yoga</Text>
+      </View>
+
+      <GoalCard
+        icon="flower-outline"
+        iconColor={YOGA_TAUPE}
+        title="Séances de yoga / pilates"
+        current={weeklyYoga}
+        target={yogaGoal}
+        unit="séances"
+        progress={weeklyYoga / Math.max(yogaGoal, 1)}
+        progressColor={YOGA_TAUPE}
+        colors={colors}
+      />
+
+      {/* ── NUTRITION ── */}
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionDot, { backgroundColor: NUTRITION_GREEN }]} />
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Maya Nutrition</Text>
+      </View>
+
+      <GoalCard
+        icon="restaurant-outline"
+        iconColor={NUTRITION_GREEN}
+        title="Calories consommées aujourd'hui"
+        current={todayNutritionCal}
+        target={nutritionCalGoal}
+        unit="kcal"
+        progress={todayNutritionCal / nutritionCalGoal}
+        progressColor={NUTRITION_GREEN}
+        colors={colors}
+      />
+
       <GoalCard
         icon="calendar-outline"
         iconColor="#4FC3F7"
-        title="Sorties totales"
-        current={weeklyRuns + weeklyWorkouts}
-        target={5}
-        unit="sorties"
-        progress={(weeklyRuns + weeklyWorkouts) / 5}
+        title="Jours nutrition trackés"
+        current={weekNutritionDays}
+        target={7}
+        unit="jours"
+        progress={weekNutritionDays / 7}
         progressColor="#4FC3F7"
         colors={colors}
       />
 
+      {/* ── GLOBAL ── */}
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionDot, { backgroundColor: HUB_GOLD }]} />
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Global</Text>
+      </View>
+
+      <GoalCard
+        icon="trophy-outline"
+        iconColor={HUB_GOLD}
+        title="Activités totales cette semaine"
+        current={totalActivities}
+        target={5}
+        unit="activités"
+        progress={totalActivities / 5}
+        progressColor={HUB_GOLD}
+        colors={colors}
+      />
+
       {/* Training intensity levels */}
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Niveau d'intensité</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 4 }]}>Niveau d'intensité</Text>
       <View style={styles.levelsRow}>
         {GOAL_LEVELS.map((lvl, i) => {
           const isActive = i === 1;
@@ -243,19 +325,19 @@ export default function GoalsScreen() {
 
       {/* Motivation message */}
       <View style={[styles.motivCard, { backgroundColor: colors.card, borderColor: HUB_GOLD + "44" }]}>
-        <Text style={[styles.motivEmoji]}>💪</Text>
+        <Text style={styles.motivEmoji}>💪</Text>
         <View style={{ flex: 1 }}>
           <Text style={[styles.motivTitle, { color: colors.foreground }]}>
-            {weeklyRuns + weeklyWorkouts >= 3
+            {totalActivities >= 4
               ? "En feu cette semaine !"
-              : weeklyRuns + weeklyWorkouts >= 1
+              : totalActivities >= 2
               ? "Bon début !"
               : "Démarre ta semaine !"}
           </Text>
           <Text style={[styles.motivText, { color: colors.mutedForeground }]}>
-            {weeklyRuns + weeklyWorkouts >= 3
-              ? "Tu bats ton rythme habituel. Continue comme ça !"
-              : weeklyRuns + weeklyWorkouts >= 1
+            {totalActivities >= 4
+              ? "Tu enchaînes les activités. Continue sur cette lancée !"
+              : totalActivities >= 2
               ? "Tu as déjà bougé. Garde le cap jusqu'à la fin de la semaine."
               : "Chaque grande transformation commence par un premier pas."}
           </Text>
@@ -275,6 +357,8 @@ const styles = StyleSheet.create({
   weekDot: { width: 8, height: 8, borderRadius: 4 },
   weekTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   weekSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  sectionDot: { width: 6, height: 6, borderRadius: 3 },
   sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
   goalCard: {
     borderRadius: 16, borderWidth: 1, padding: 16, gap: 12,

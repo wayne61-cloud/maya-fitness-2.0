@@ -25,7 +25,7 @@ const MEAL_SLOTS: { type: NutritionMealType; label: string; icon: string; color:
   { type: "Petit-déjeuner", label: "Petit-déjeuner", icon: "sunny-outline", color: "#F5A623" },
   { type: "Déjeuner", label: "Déjeuner", icon: "partly-sunny-outline", color: ACCENT },
   { type: "Dîner", label: "Dîner", icon: "moon-outline", color: "#4A6FA5" },
-  { type: "Snack", label: "Snack", icon: "apple-outline", color: WARM },
+  { type: "Snack", label: "Snack", icon: "nutrition-outline", color: WARM },
 ];
 
 function formatDate(d: Date): string {
