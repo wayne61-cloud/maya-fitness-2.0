@@ -8,6 +8,8 @@ import { Platform, StyleSheet, View } from "react-native";
 
 type Coord = { latitude: number; longitude: number };
 
+export type MapLayer = "dark" | "satellite" | "terrain" | "light";
+
 export interface MapViewRef {
   animateCamera: (
     opts: { center?: Coord; zoom?: number; heading?: number; pitch?: number },
@@ -22,6 +24,7 @@ export interface MapViewRef {
   clearPlan: () => void;
   setHeadingMode: (active: boolean) => void;
   markRunFinished: () => void;
+  setMapLayer: (layer: MapLayer) => void;
 }
 
 export interface MapViewComponentProps {
@@ -89,6 +92,7 @@ function LeafletMap(
     clearPlan: () => postMsg({ type: "clearPlan" }),
     setHeadingMode: (active) => postMsg({ type: "setHeadingMode", active }),
     markRunFinished: () => postMsg({ type: "markRunFinished" }),
+    setMapLayer: (layer) => postMsg({ type: "setMapLayer", layer }),
   }));
 
   useEffect(() => {
@@ -149,6 +153,7 @@ if (Platform.OS !== "web") {
       clearPlan: () => {},
       setHeadingMode: () => {},
       markRunFinished: () => {},
+      setMapLayer: () => {},
     }));
     return (
       <MapView
@@ -186,7 +191,7 @@ export const MapViewComponent = Platform.OS === "web" ? LeafletMapForward : (Nat
 export default MapViewComponent;
 
 // ============================================================
-// Leaflet HTML
+// Leaflet HTML — Strava-like map with multiple tile layers
 // ============================================================
 function buildLeafletHTML(initLat: number, initLng: number): string {
   return `<!DOCTYPE html>
@@ -291,6 +296,36 @@ html,body,#map{width:100%;height:100%;background:#0d0d14;overflow:hidden;}
   animation:spin .7s linear infinite;
 }
 @keyframes spin{to{transform:translateY(-50%) rotate(360deg);}}
+
+/* ---- Layer switcher ---- */
+#layer-switcher{
+  position:fixed;bottom:80px;right:12px;
+  display:flex;flex-direction:column;gap:6px;
+  z-index:9998;
+}
+.layer-btn{
+  width:42px;height:42px;border-radius:21px;
+  background:rgba(16,16,24,0.94);border:1px solid rgba(255,255,255,0.12);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:18px;transition:all 0.2s;
+  box-shadow:0 2px 8px rgba(0,0,0,0.5);
+}
+.layer-btn:hover{background:rgba(40,40,60,0.98);border-color:rgba(79,195,247,0.4);}
+.layer-btn.active{background:rgba(79,195,247,0.2);border-color:#4FC3F7;}
+.layer-btn span{font-size:18px;line-height:1;}
+
+/* ---- Speed legend ---- */
+#speed-legend{
+  position:fixed;bottom:80px;left:12px;
+  background:rgba(13,13,20,0.88);
+  padding:8px 12px;border-radius:14px;
+  border:1px solid rgba(255,255,255,0.1);
+  display:none;z-index:9998;
+  backdrop-filter:blur(8px);
+}
+#speed-legend .leg-title{color:rgba(255,255,255,0.6);font:500 10px/1 system-ui;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+#speed-legend .leg-bar{width:80px;height:6px;border-radius:3px;background:linear-gradient(to right,#1565C0,#00E676,#FFCA28,#E8335A);margin-bottom:4px;}
+#speed-legend .leg-labels{display:flex;justify-content:space-between;font:400 9px/1 system-ui;color:rgba(255,255,255,0.45);}
 </style>
 </head>
 <body>
@@ -298,7 +333,28 @@ html,body,#map{width:100%;height:100%;background:#0d0d14;overflow:hidden;}
 <div id="plan-hint">👆 Appuie pour ajouter un point de passage</div>
 <div id="spinner"></div>
 <div id="map"></div>
+<div id="layer-switcher">
+  <div class="layer-btn active" id="btn-dark" onclick="switchLayer('dark')" title="Nuit"><span>🌑</span></div>
+  <div class="layer-btn" id="btn-satellite" onclick="switchLayer('satellite')" title="Satellite"><span>🛰️</span></div>
+  <div class="layer-btn" id="btn-terrain" onclick="switchLayer('terrain')" title="Terrain"><span>🏔️</span></div>
+  <div class="layer-btn" id="btn-light" onclick="switchLayer('light')" title="Clair"><span>☀️</span></div>
+</div>
+<div id="speed-legend">
+  <div class="leg-title">Allure</div>
+  <div class="leg-bar"></div>
+  <div class="leg-labels"><span>Rapide</span><span>Lent</span></div>
+</div>
 <script>
+// ============ Tile layer definitions ============
+var LAYERS = {
+  dark:      { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd', maxZoom:20 },
+  satellite: { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', sub:'', maxZoom:19 },
+  terrain:   { url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', sub:'abc', maxZoom:17 },
+  light:     { url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', sub:'abcd', maxZoom:20 },
+};
+var currentLayerId = 'dark';
+var currentTileLayer = null;
+
 // ============ Map init ============
 var map = L.map('map', {
   center: [${initLat}, ${initLng}],
@@ -308,13 +364,26 @@ var map = L.map('map', {
   tap: true,
   tapTolerance: 15,
 });
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-  maxZoom:20, subdomains:'abcd'
-}).addTo(map);
+
+function switchLayer(id) {
+  if (currentTileLayer) map.removeLayer(currentTileLayer);
+  var def = LAYERS[id];
+  var opts = { maxZoom: def.maxZoom };
+  if (def.sub) opts.subdomains = def.sub;
+  currentTileLayer = L.tileLayer(def.url, opts).addTo(map);
+  currentLayerId = id;
+  // update button states
+  ['dark','satellite','terrain','light'].forEach(function(l){
+    var btn = document.getElementById('btn-'+l);
+    if(btn) btn.className = 'layer-btn' + (l===id?' active':'');
+  });
+}
+switchLayer('dark');
 
 // ============ State ============
 var userMarker = null;
 var currentHeading = 0;
+var allTraceCoords = [];
 
 // --- PLAN layers ---
 var planGlow = L.polyline([],{ color:'#4FC3F7', weight:16, opacity:0.18, lineCap:'round', lineJoin:'round' }).addTo(map);
@@ -323,9 +392,8 @@ var planDecorator = null;
 var cursorLine  = L.polyline([],{ color:'#4FC3F7', weight:2.5, opacity:0.45, dashArray:'5,6' }).addTo(map);
 var startMk = null, endMk = null;
 
-// --- TRACE layers ---
-var traceGlow = L.polyline([],{ color:'#00E676', weight:18, opacity:0.15, lineCap:'round', lineJoin:'round' }).addTo(map);
-var traceLine = L.polyline([],{ color:'#00E676', weight:7,  opacity:0.97, lineCap:'round', lineJoin:'round' }).addTo(map);
+// --- TRACE layers (gradient segments) ---
+var traceSegments = [];
 var traceDecorator = null;
 var traceStartMk = null, traceEndMk = null;
 
@@ -335,6 +403,81 @@ var isPlanMode = false;
 var isRoutingFlight = false;
 var routingQueue = null;
 var planSnapped = [];
+
+// ============ Speed gradient ============
+// Maps a normalized speed [0..1] to a CSS color string
+// 0=slow(red), 0.5=medium(green), 1=fast(blue) — Strava-style
+function speedColor(t) {
+  // t=0 → slow → red  #E8335A
+  // t=0.5 → medium → green #00E676
+  // t=1 → fast → blue #1565C0
+  var stops = [
+    [232,51,90],   // #E8335A (slow)
+    [0,230,118],   // #00E676 (medium)
+    [21,101,192],  // #1565C0 (fast)
+  ];
+  t = Math.max(0, Math.min(1, t));
+  var idx = t * (stops.length - 1);
+  var lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return 'rgb('+stops[lo][0]+','+stops[lo][1]+','+stops[lo][2]+')';
+  var f = idx - lo;
+  var r = Math.round(stops[lo][0]+(stops[hi][0]-stops[lo][0])*f);
+  var g = Math.round(stops[lo][1]+(stops[hi][1]-stops[lo][1])*f);
+  var b = Math.round(stops[lo][2]+(stops[hi][2]-stops[lo][2])*f);
+  return 'rgb('+r+','+g+','+b+')';
+}
+
+function clearTraceSegments() {
+  traceSegments.forEach(function(s){map.removeLayer(s);});
+  traceSegments = [];
+  if(traceDecorator){map.removeLayer(traceDecorator);traceDecorator=null;}
+}
+
+function buildGradientTrace(coords) {
+  clearTraceSegments();
+  if(coords.length < 2) return;
+
+  // Compute per-segment speeds using haversine + index-based time estimation
+  var n = coords.length;
+  var speeds = [];
+  for(var i=0;i<n-1;i++){
+    var d = haversine(coords[i][0],coords[i][1],coords[i+1][0],coords[i+1][1]);
+    // Assume uniform time steps; use distance as proxy for speed
+    speeds.push(d);
+  }
+  var maxS = Math.max.apply(null,speeds)||1;
+  var minS = Math.min.apply(null,speeds)||0;
+  var range = maxS - minS || 1;
+
+  // Glow layer (full route)
+  var allPts = coords.map(function(c){return [c[0],c[1]];});
+  var glowSeg = L.polyline(allPts,{color:'#00E676',weight:18,opacity:0.12,lineCap:'round',lineJoin:'round'}).addTo(map);
+  traceSegments.push(glowSeg);
+
+  // Gradient segments
+  for(var j=0;j<n-1;j++){
+    var t = (speeds[j]-minS)/range; // 0=slow, 1=fast
+    var col = speedColor(t);
+    var seg = L.polyline([coords[j],coords[j+1]],{
+      color:col, weight:7, opacity:0.97, lineCap:'round', lineJoin:'round'
+    }).addTo(map);
+    traceSegments.push(seg);
+  }
+
+  // Direction arrows on last segment group
+  if(typeof L.PolylineDecorator !== 'undefined' && allPts.length > 1){
+    var tmpLine = L.polyline(allPts);
+    traceDecorator = L.polylineDecorator(tmpLine, {
+      patterns:[{offset:'8%',repeat:100,symbol:L.Symbol.arrowHead({
+        pixelSize:10,headAngle:50,polygon:false,
+        pathOptions:{color:'rgba(255,255,255,0.7)',weight:2,opacity:0.7}
+      })}]
+    }).addTo(map);
+  }
+
+  // Show legend
+  document.getElementById('speed-legend').style.display = n > 5 ? 'block' : 'none';
+}
 
 // ============ User marker ============
 function upsertUser(lat, lng) {
@@ -368,7 +511,7 @@ function mkIcon(cls, label) {
   });
 }
 
-// ============ Direction arrows ============
+// ============ Direction arrows (plan) ============
 function refreshPlanArrows() {
   if (planDecorator) { map.removeLayer(planDecorator); planDecorator = null; }
   var pts = planLine.getLatLngs();
@@ -379,22 +522,6 @@ function refreshPlanArrows() {
         symbol: L.Symbol.arrowHead({
           pixelSize: 11, headAngle: 50, polygon: false,
           pathOptions: { color:'#4FC3F7', weight:2.5, opacity:0.85 }
-        })
-      }]
-    }).addTo(map);
-  }
-}
-
-function refreshTraceArrows() {
-  if (traceDecorator) { map.removeLayer(traceDecorator); traceDecorator = null; }
-  var pts = traceLine.getLatLngs();
-  if (typeof L.PolylineDecorator !== 'undefined' && pts.length > 1) {
-    traceDecorator = L.polylineDecorator(traceLine, {
-      patterns: [{
-        offset: '8%', repeat: 100,
-        symbol: L.Symbol.arrowHead({
-          pixelSize: 10, headAngle: 50, polygon: false,
-          pathOptions: { color:'#00E676', weight:2.5, opacity:0.8 }
         })
       }]
     }).addTo(map);
@@ -456,7 +583,6 @@ async function fetchRoute(wps) {
       notifyPlan(km);
       refreshPlanArrows();
       refreshPlanEndpoints();
-      // Auto-fit to show full route
       if (lls.length > 1) {
         map.fitBounds(planLine.getBounds(), { padding:[90,60], maxZoom:17, animate:true });
       }
@@ -529,35 +655,29 @@ window.addEventListener('message', function(e) {
     }
 
     if (msg.type === 'updateTrace') {
-      var lls = msg.coords.map(function(c){return [c.latitude,c.longitude];});
-      traceLine.setLatLngs(lls);
-      traceGlow.setLatLngs(lls);
-      refreshTraceArrows();
-      // Start marker
-      if (lls.length > 0) {
-        if (!traceStartMk) {
-          traceStartMk = L.marker(lls[0], { icon:mkIcon('marker-start','Départ'), zIndexOffset:500 }).addTo(map);
-        }
+      allTraceCoords = msg.coords.map(function(c){return [c.latitude,c.longitude];});
+      buildGradientTrace(allTraceCoords);
+      if (allTraceCoords.length > 0 && !traceStartMk) {
+        traceStartMk = L.marker(allTraceCoords[0], { icon:mkIcon('marker-start','Départ'), zIndexOffset:500 }).addTo(map);
       }
     }
 
     if (msg.type === 'clearTrace') {
-      traceLine.setLatLngs([]);
-      traceGlow.setLatLngs([]);
-      if (traceDecorator){ map.removeLayer(traceDecorator); traceDecorator=null; }
-      if (traceStartMk)  { map.removeLayer(traceStartMk); traceStartMk=null; }
-      if (traceEndMk)    { map.removeLayer(traceEndMk); traceEndMk=null; }
+      clearTraceSegments();
+      allTraceCoords = [];
+      if (traceStartMk){ map.removeLayer(traceStartMk); traceStartMk=null; }
+      if (traceEndMk)  { map.removeLayer(traceEndMk); traceEndMk=null; }
+      document.getElementById('speed-legend').style.display = 'none';
     }
 
     if (msg.type === 'markRunFinished') {
-      var lls2 = traceLine.getLatLngs();
-      if (lls2.length > 0 && !traceEndMk) {
-        var last2 = lls2[lls2.length-1];
-        traceEndMk = L.marker(last2, { icon:mkIcon('marker-end','Arrivée'), zIndexOffset:800 }).addTo(map);
+      if (allTraceCoords.length > 0 && !traceEndMk) {
+        var lastC = allTraceCoords[allTraceCoords.length-1];
+        traceEndMk = L.marker(lastC, { icon:mkIcon('marker-end','Arrivée'), zIndexOffset:800 }).addTo(map);
       }
-      // Fit to show full trace
-      if (lls2.length > 1) {
-        map.fitBounds(traceLine.getBounds(), { padding:[100,70], animate:true });
+      if (allTraceCoords.length > 1) {
+        var bounds = L.latLngBounds(allTraceCoords);
+        map.fitBounds(bounds, { padding:[100,70], animate:true });
       }
     }
 
@@ -600,6 +720,10 @@ window.addEventListener('message', function(e) {
           fetchRoute(planWaypoints);
         }
       }
+    }
+
+    if (msg.type === 'setMapLayer') {
+      switchLayer(msg.layer);
     }
 
     if (msg.type === 'setHeadingMode') { /* heading mode reserved for native */ }

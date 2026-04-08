@@ -76,9 +76,14 @@ export default function ExerciseDetailScreen() {
       duration,
     });
     setShowWorkout(false);
-    Alert.alert("Bravo !", `Séance terminée — ${completedSets.length} série(s) complétée(s).`, [
-      { text: "OK", onPress: () => router.back() },
-    ]);
+    if (Platform.OS === "web") {
+      window.alert(`Bravo ! Séance terminée — ${completedSets.length} série(s) complétée(s).`);
+      router.back();
+    } else {
+      Alert.alert("Bravo !", `Séance terminée — ${completedSets.length} série(s) complétée(s).`, [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    }
   }
 
   return (
@@ -112,14 +117,23 @@ export default function ExerciseDetailScreen() {
         {/* Video */}
         <View style={[styles.videoContainer, { backgroundColor: colors.card }]}>
           {isWeb ? (
-            <View style={styles.webVideoWrap}>
-              <IFrameTag
-                src={ytUrl}
-                style={{ width: "100%", height: "100%", border: "none", borderRadius: 14 }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
+            <TouchableOpacity
+              style={styles.webVideoWrap}
+              onPress={() => { (window as any).open(`https://www.youtube.com/watch?v=${exercise.youtubeId}`, "_blank"); }}
+              activeOpacity={0.85}
+            >
+              <img
+                src={`https://img.youtube.com/vi/${exercise.youtubeId}/hqdefault.jpg`}
+                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 14, pointerEvents: "none", display: "block" } as any}
+                alt={exercise.name}
               />
-            </View>
+              <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 14 }}>
+                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(255,0,0,0.9)", alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ color: "#fff", fontSize: 22 }}>▶</Text>
+                </View>
+                <Text style={{ color: "#fff", marginTop: 10, fontSize: 13, fontWeight: "600" }}>Ouvrir sur YouTube</Text>
+              </View>
+            </TouchableOpacity>
           ) : (
             <WebView
               source={{ uri: ytUrl }}

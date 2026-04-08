@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -28,26 +29,47 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 function YoutubeEmbed({ videoId }: { videoId: string }) {
-  const isWeb = Platform.OS === "web";
-  if (isWeb) {
+  const [showEmbed, setShowEmbed] = useState(false);
+
+  // Web: YouTube blocks iframes — show thumbnail + open in new tab
+  if (Platform.OS === "web") {
+    const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    return (
+      <TouchableOpacity
+        style={styles.videoBox}
+        onPress={() => { (window as any).open(`https://www.youtube.com/watch?v=${videoId}`, "_blank"); }}
+        activeOpacity={0.85}
+      >
+        <Image source={{ uri: thumbUrl }} style={[StyleSheet.absoluteFillObject, { borderRadius: 16 }]} resizeMode="cover" />
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 16 }]} />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: ACCENT, alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="play" size={24} color="#fff" />
+          </View>
+          <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium" }}>Ouvrir sur YouTube</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  if (showEmbed) {
+    const html = `<!DOCTYPE html><html><body style="margin:0;background:#000;"><iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1" frameborder="0" allowfullscreen style="position:absolute;top:0;left:0;"></iframe></body></html>`;
     return (
       <View style={styles.videoBox}>
-        <iframe
-          width="100%"
-          height="100%"
-          src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
-          style={{ border: "none", borderRadius: 12 }}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
+        <WebView source={{ html }} style={{ flex: 1 }} allowsInlineMediaPlayback mediaPlaybackRequiresUserAction={false} />
       </View>
     );
   }
-  const html = `<!DOCTYPE html><html><body style="margin:0;background:#000;"><iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1" frameborder="0" allowfullscreen style="position:absolute;top:0;left:0;"></iframe></body></html>`;
+
   return (
-    <View style={styles.videoBox}>
-      <WebView source={{ html }} style={{ flex: 1 }} allowsInlineMediaPlayback mediaPlaybackRequiresUserAction={false} />
-    </View>
+    <TouchableOpacity style={styles.videoBox} onPress={() => setShowEmbed(true)} activeOpacity={0.85}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#111" }}>
+        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: ACCENT, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name="play" size={24} color="#fff" />
+        </View>
+        <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium" }}>Lancer la vidéo</Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 

@@ -28,19 +28,32 @@ function YoutubeEmbed({ videoId }: { videoId: string }) {
   const embedUrl = `https://www.youtube.com/embed/${videoId}?modestbranding=1&rel=0&playsinline=1`;
   const embedHtml = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#000;"><iframe width="100%" height="100%" src="${embedUrl}" frameborder="0" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe></body></html>`;
 
-  if (showEmbed) {
-    if (Platform.OS === "web") {
-      return (
-        <View style={styles.videoContainer}>
-          <iframe
-            src={embedUrl}
-            style={{ width: "100%", height: "100%", border: "none" }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
+  // Web: YouTube blocks iframes — show thumbnail + open in new tab
+  if (Platform.OS === "web") {
+    const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    return (
+      <TouchableOpacity
+        style={[styles.videoContainer, { backgroundColor: "#111" }]}
+        onPress={() => { (window as any).open(`https://www.youtube.com/watch?v=${videoId}`, "_blank"); }}
+        activeOpacity={0.85}
+      >
+        <Image source={{ uri: thumbUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.35)" }]} />
+        <View style={styles.videoOverlay}>
+          <View style={styles.playCircle}>
+            <Ionicons name="play" size={28} color="#fff" />
+          </View>
+          <Text style={styles.videoLabel}>Ouvrir sur YouTube</Text>
+          <View style={styles.ytBadge}>
+            <Ionicons name="logo-youtube" size={14} color="#FF0000" />
+            <Text style={styles.ytBadgeText}>YouTube</Text>
+          </View>
         </View>
-      );
-    }
+      </TouchableOpacity>
+    );
+  }
+
+  if (showEmbed) {
     return (
       <WebView
         source={{ html: embedHtml }}

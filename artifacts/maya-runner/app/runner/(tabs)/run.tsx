@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { MapViewComponent, MapViewRef } from "@/components/MapViewComponent";
 import {
   haversineKm,
@@ -38,7 +39,9 @@ function formatDuration(s: number) {
 export default function RunScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { addRun } = useApp();
+  const { addRun, profile } = useApp();
+  const { user } = useAuth();
+  const displayName = user?.name || profile?.name || "Athlète";
 
   const [runState, setRunState] = useState<RunState>("idle");
   const [currentPosition, setCurrentPosition] = useState<Coord | null>(null);
@@ -454,6 +457,9 @@ export default function RunScreen() {
               </View>
             ) : (
               <View style={styles.idleHeader}>
+                <Text style={[styles.idleTitle, { fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 2 }]}>
+                  {displayName}
+                </Text>
                 <Text style={styles.idleTitle}>
                   {isPlanning ? "Planifier mon parcours" : "Prêt à courir ?"}
                 </Text>
