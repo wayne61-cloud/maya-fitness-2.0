@@ -309,20 +309,22 @@ html,body,#map{width:100%;height:100%;background:#0d0d14;overflow:hidden;}
 
 /* ---- Layer switcher ---- */
 #layer-switcher{
-  position:fixed;bottom:80px;right:12px;
+  position:fixed;bottom:132px;right:12px;
   display:flex;flex-direction:column;gap:6px;
-  z-index:9998;
+  z-index:10001;pointer-events:auto;
 }
 .layer-btn{
+  appearance:none;-webkit-appearance:none;
   width:42px;height:42px;border-radius:21px;
   background:rgba(16,16,24,0.94);border:1px solid rgba(255,255,255,0.12);
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;font-size:18px;transition:all 0.2s;
   box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  touch-action:manipulation;
 }
 .layer-btn:hover{background:rgba(40,40,60,0.98);border-color:rgba(79,195,247,0.4);}
 .layer-btn.active{background:rgba(79,195,247,0.2);border-color:#4FC3F7;}
-.layer-btn span{font-size:18px;line-height:1;}
+.layer-btn span{font-size:18px;line-height:1;pointer-events:none;}
 
 /* ---- Speed legend ---- */
 #speed-legend{
@@ -344,10 +346,10 @@ html,body,#map{width:100%;height:100%;background:#0d0d14;overflow:hidden;}
 <div id="spinner"></div>
 <div id="map"></div>
 <div id="layer-switcher">
-  <div class="layer-btn active" id="btn-dark" onclick="switchLayer('dark')" title="Nuit"><span>🌑</span></div>
-  <div class="layer-btn" id="btn-satellite" onclick="switchLayer('satellite')" title="Satellite"><span>🛰️</span></div>
-  <div class="layer-btn" id="btn-terrain" onclick="switchLayer('terrain')" title="Terrain"><span>🏔️</span></div>
-  <div class="layer-btn" id="btn-light" onclick="switchLayer('light')" title="Clair"><span>☀️</span></div>
+  <button class="layer-btn active" type="button" id="btn-dark" onclick="event.stopPropagation(); switchLayer('dark')" title="Nuit"><span>🌑</span></button>
+  <button class="layer-btn" type="button" id="btn-satellite" onclick="event.stopPropagation(); switchLayer('satellite')" title="Satellite"><span>🛰️</span></button>
+  <button class="layer-btn" type="button" id="btn-terrain" onclick="event.stopPropagation(); switchLayer('terrain')" title="Terrain"><span>🏔️</span></button>
+  <button class="layer-btn" type="button" id="btn-light" onclick="event.stopPropagation(); switchLayer('light')" title="Clair"><span>☀️</span></button>
 </div>
 <div id="speed-legend">
   <div class="leg-title">Allure</div>

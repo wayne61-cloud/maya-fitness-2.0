@@ -11,6 +11,7 @@ export default function RunnerLayout() {
         <ModuleSplash module="runner" onFinish={() => setSplashDone(true)} />
       )}
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="exercise/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="exercises" options={{ headerShown: false }} />

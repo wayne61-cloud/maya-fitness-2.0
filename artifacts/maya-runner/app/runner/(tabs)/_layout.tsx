@@ -1,25 +1,84 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { Tabs, router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React from "react";
-import { Platform, StyleSheet, TouchableOpacity, View, useColorScheme } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 const RUNNER_RED = "#E8335A";
 
 export default function RunnerTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { user } = useAuth();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const insets = useSafeAreaInsets();
+  const [onboardingResolved, setOnboardingResolved] = useState(false);
+  const [hasRunnerOnboarding, setHasRunnerOnboarding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function resolveOnboarding() {
+      if (!user?.id) {
+        if (!active) return;
+        setHasRunnerOnboarding(false);
+        setOnboardingResolved(false);
+        return;
+      }
+
+      const prefix = `@maya_${user.id}_`;
+
+      try {
+        const [storedCompletion, legacyCompletion, storedProfile, storedRuns] = await Promise.all([
+          AsyncStorage.getItem(`${prefix}runnerOnboardingCompleted`),
+          AsyncStorage.getItem("runnerOnboardingCompleted"),
+          AsyncStorage.getItem(`${prefix}profile`),
+          AsyncStorage.getItem(`${prefix}runs`),
+        ]);
+        if (!active) return;
+
+        const hasExistingRunnerData = Boolean(storedProfile || storedRuns);
+        const onboardingCompleted =
+          storedCompletion === "true" ||
+          legacyCompletion === "true" ||
+          hasExistingRunnerData;
+
+        if (!storedCompletion && onboardingCompleted) {
+          AsyncStorage.setItem(`${prefix}runnerOnboardingCompleted`, "true").catch(console.warn);
+        }
+
+        setHasRunnerOnboarding(onboardingCompleted);
+        setOnboardingResolved(true);
+
+        if (!onboardingCompleted) {
+          router.replace("/runner/onboarding");
+        }
+      } catch {
+        if (!active) return;
+        setHasRunnerOnboarding(false);
+        setOnboardingResolved(true);
+        router.replace("/runner/onboarding");
+      }
+    }
+
+    resolveOnboarding();
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  if (!(onboardingResolved && hasRunnerOnboarding)) {
+    return null;
+  }
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
         tabBarActiveTintColor: RUNNER_RED,
         tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {

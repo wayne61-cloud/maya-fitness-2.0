@@ -1,22 +1,92 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { Tabs, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppContext } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 
 const YOGA_ACCENT = "#9B7B6E";
 const YOGA_BG = "#FAF7F4";
 
 export default function YogaTabLayout() {
+  const { yogaOnboarding, setYogaOnboarding } = useAppContext();
+  const { user } = useAuth();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const insets = useSafeAreaInsets();
+  const [onboardingResolved, setOnboardingResolved] = useState(false);
+  const [hasYogaOnboarding, setHasYogaOnboarding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function resolveOnboarding() {
+      if (yogaOnboarding) {
+        if (!active) return;
+        setHasYogaOnboarding(true);
+        setOnboardingResolved(true);
+        return;
+      }
+
+      if (!user?.id) {
+        if (!active) return;
+        setHasYogaOnboarding(false);
+        setOnboardingResolved(false);
+        return;
+      }
+
+      try {
+        const storageKey = `@maya_${user.id}_yogaOnboarding`;
+        const [storedOnboarding, legacyOnboarding] = await Promise.all([
+          AsyncStorage.getItem(storageKey),
+          AsyncStorage.getItem("yogaOnboarding"),
+        ]);
+        if (!active) return;
+
+        const resolvedOnboarding = storedOnboarding ?? legacyOnboarding;
+        const hasStoredOnboarding = Boolean(resolvedOnboarding);
+
+        if (!storedOnboarding && legacyOnboarding) {
+          AsyncStorage.setItem(storageKey, legacyOnboarding).catch(console.warn);
+        }
+
+        if (!yogaOnboarding && resolvedOnboarding) {
+          await setYogaOnboarding(JSON.parse(resolvedOnboarding));
+        }
+
+        setHasYogaOnboarding(hasStoredOnboarding);
+        setOnboardingResolved(true);
+
+        if (!hasStoredOnboarding) {
+          router.replace("/yoga/onboarding");
+        }
+      } catch {
+        if (!active) return;
+        setHasYogaOnboarding(false);
+        setOnboardingResolved(true);
+        router.replace("/yoga/onboarding");
+      }
+    }
+
+    resolveOnboarding();
+
+    return () => {
+      active = false;
+    };
+  }, [setYogaOnboarding, user?.id, yogaOnboarding]);
+
+  const canRenderTabs = onboardingResolved && hasYogaOnboarding && !!yogaOnboarding;
+
+  if (!canRenderTabs) {
+    return null;
+  }
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
         tabBarActiveTintColor: YOGA_ACCENT,
         tabBarInactiveTintColor: "#B8A9A2",
         tabBarStyle: {

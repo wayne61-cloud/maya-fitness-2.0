@@ -16,6 +16,11 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { configureApiClient } from "@/lib/api";
+import {
+  checkAndNotifyInactivity,
+  recordActivity,
+  requestNotificationPermission,
+} from "@/utils/notifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,6 +50,9 @@ function AuthGuard() {
 
   // Admin role on non-admin page → redirect to admin
   if (user && isAdminRole && !isOnAdmin) return <Redirect href="/admin" />;
+
+  // Regular user on admin page → redirect to app
+  if (user && !isAdminRole && isOnAdmin) return <Redirect href="/(tabs)" />;
 
   return null;
 }
@@ -92,6 +100,9 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Ionicons: require("../assets/fonts/Ionicons.ttf"),
+    MaterialCommunityIcons: require("../assets/fonts/MaterialCommunityIcons.ttf"),
+    Feather: require("../assets/fonts/Feather.ttf"),
   });
 
   useEffect(() => {
@@ -99,6 +110,15 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // PWA push notifications: request permission then check for inactivity
+  useEffect(() => {
+    (async () => {
+      await recordActivity();
+      const granted = await requestNotificationPermission();
+      if (granted) await checkAndNotifyInactivity();
+    })();
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 

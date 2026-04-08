@@ -1,25 +1,93 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { Tabs, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
-import { Platform, StyleSheet, TouchableOpacity, View, useColorScheme } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 const WORKOUT_ORANGE = "#FF8C00";
 
 export default function WorkoutTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { workoutOnboarding, setWorkoutOnboarding } = useApp();
+  const { user } = useAuth();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const insets = useSafeAreaInsets();
+  const [onboardingResolved, setOnboardingResolved] = useState(false);
+  const [hasWorkoutOnboarding, setHasWorkoutOnboarding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function resolveOnboarding() {
+      if (workoutOnboarding) {
+        if (!active) return;
+        setHasWorkoutOnboarding(true);
+        setOnboardingResolved(true);
+        return;
+      }
+
+      if (!user?.id) {
+        if (!active) return;
+        setHasWorkoutOnboarding(false);
+        setOnboardingResolved(false);
+        return;
+      }
+
+      try {
+        const storageKey = `@maya_${user.id}_workoutOnboarding`;
+        const [storedOnboarding, legacyOnboarding] = await Promise.all([
+          AsyncStorage.getItem(storageKey),
+          AsyncStorage.getItem("workoutOnboarding"),
+        ]);
+        if (!active) return;
+
+        const resolvedOnboarding = storedOnboarding ?? legacyOnboarding;
+        const hasStoredOnboarding = Boolean(resolvedOnboarding);
+
+        if (!storedOnboarding && legacyOnboarding) {
+          AsyncStorage.setItem(storageKey, legacyOnboarding).catch(console.warn);
+        }
+
+        if (!workoutOnboarding && resolvedOnboarding) {
+          await setWorkoutOnboarding(JSON.parse(resolvedOnboarding));
+        }
+
+        setHasWorkoutOnboarding(hasStoredOnboarding);
+        setOnboardingResolved(true);
+
+        if (!hasStoredOnboarding) {
+          router.replace("/workout/onboarding");
+        }
+      } catch {
+        if (!active) return;
+        setHasWorkoutOnboarding(false);
+        setOnboardingResolved(true);
+        router.replace("/workout/onboarding");
+      }
+    }
+
+    resolveOnboarding();
+
+    return () => {
+      active = false;
+    };
+  }, [setWorkoutOnboarding, user?.id, workoutOnboarding]);
+
+  const canRenderTabs = onboardingResolved && hasWorkoutOnboarding && !!workoutOnboarding;
+
+  if (!canRenderTabs) {
+    return null;
+  }
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
         tabBarActiveTintColor: WORKOUT_ORANGE,
         tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {
