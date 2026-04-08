@@ -3,7 +3,7 @@
  * - Native (iOS/Android): uses react-native-maps
  * - Web: full Leaflet map with OSRM routing, direction arrows, glow traces
  */
-import React, { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 type Coord = { latitude: number; longitude: number };
@@ -59,10 +59,14 @@ function LeafletMap(
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initializedRef = useRef(false);
 
-  const lat = userPosition?.latitude ?? initialRegion?.latitude ?? 48.8566;
-  const lng = userPosition?.longitude ?? initialRegion?.longitude ?? 2.3522;
-
-  const html = buildLeafletHTML(lat, lng);
+  // Build HTML only once — iframe must NOT reload on GPS updates.
+  // All position/trace/heading updates go through postMessage.
+  const html = useMemo(() => {
+    const lat = initialRegion?.latitude ?? 48.8566;
+    const lng = initialRegion?.longitude ?? 2.3522;
+    return buildLeafletHTML(lat, lng);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function postMsg(data: object) {
     iframeRef.current?.contentWindow?.postMessage(JSON.stringify(data), "*");
@@ -71,11 +75,17 @@ function LeafletMap(
   function handleLoad() {
     if (!initializedRef.current) {
       initializedRef.current = true;
-      setTimeout(() => postMsg({ type: "init", lat, lng, zoom: 17 }), 250);
+      const lat = initialRegion?.latitude ?? 48.8566;
+      const lng = initialRegion?.longitude ?? 2.3522;
+      setTimeout(() => postMsg({ type: "init", lat, lng, zoom: 16 }), 250);
     }
   }
 
-  useEffect(() => { postMsg({ type: "updatePosition", lat, lng }); }, [userPosition]);
+  useEffect(() => {
+    if (userPosition) {
+      postMsg({ type: "updatePosition", lat: userPosition.latitude, lng: userPosition.longitude });
+    }
+  }, [userPosition]);
   useEffect(() => { postMsg({ type: "updateTrace", coords: traceCoords }); }, [traceCoords]);
   useEffect(() => { postMsg({ type: "setHeading", heading }); }, [heading]);
   useEffect(() => { postMsg({ type: "setPlanningMode", active: isPlanningMode }); }, [isPlanningMode]);
