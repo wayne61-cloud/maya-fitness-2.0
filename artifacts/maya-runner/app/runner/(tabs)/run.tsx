@@ -282,6 +282,10 @@ export default function RunScreen() {
       return;
     }
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // Auto-request compass permission on iOS web (requires user gesture — startRun tap qualifies)
+    if (Platform.OS === "web" && !compassGranted) {
+      requestCompassPermission();
+    }
 
     setRunState("running");
     setRecordedRoute([]);
@@ -608,21 +612,6 @@ export default function RunScreen() {
             >
               <Ionicons name="locate" size={18} color={followUser && isRunning ? colors.primary : "#fff"} />
             </TouchableOpacity>
-
-            {/* Compass button — on iOS web, tap to request DeviceOrientation permission */}
-            {Platform.OS === "web" && (
-              <TouchableOpacity
-                style={[
-                  styles.mapBtn,
-                  { backgroundColor: "rgba(18,18,24,0.92)" },
-                  compassGranted && { backgroundColor: colors.primary },
-                ]}
-                onPress={requestCompassPermission}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="compass-outline" size={18} color="#fff" />
-              </TouchableOpacity>
-            )}
 
             {isActive && (
               <TouchableOpacity

@@ -126,7 +126,7 @@ export default function YogaHome() {
           )}
           <Text style={styles.featuredTitle}>{featuredSession.title}</Text>
           <Text style={styles.featuredMeta}>{featuredSession.durationMin} min · {featuredSession.level}</Text>
-          <TouchableOpacity style={styles.startBtn} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.startBtn} activeOpacity={0.85} onPress={() => router.push("/yoga/(tabs)/sessions")}>
             <Ionicons name="play" size={14} color={ACCENT} />
             <Text style={styles.startBtnText}>Commencer</Text>
           </TouchableOpacity>

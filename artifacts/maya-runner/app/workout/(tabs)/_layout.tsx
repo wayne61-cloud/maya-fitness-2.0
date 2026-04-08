@@ -43,7 +43,7 @@ export default function WorkoutTabLayout() {
         headerShadowVisible: false,
         headerLeft: () => (
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => router.replace("/(tabs)" as any)}
             style={{ paddingHorizontal: 16, paddingVertical: 8 }}
             activeOpacity={0.7}
           >

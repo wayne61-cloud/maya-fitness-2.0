@@ -299,7 +299,7 @@ export default function GoalsScreen() {
         {GOAL_LEVELS.map((lvl, i) => {
           const isActive = i === 1;
           return (
-            <TouchableOpacity
+            <View
               key={lvl.label}
               style={[
                 styles.levelCard,
@@ -308,7 +308,6 @@ export default function GoalsScreen() {
                   borderColor: isActive ? lvl.color : colors.border,
                 },
               ]}
-              activeOpacity={0.8}
             >
               <Ionicons name={lvl.icon as any} size={20} color={lvl.color} />
               <Text style={[styles.levelLabel, { color: colors.foreground }]}>{lvl.label}</Text>
@@ -318,7 +317,7 @@ export default function GoalsScreen() {
                   <Text style={styles.activeBadgeText}>Actif</Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </View>
           );
         })}
       </View>
