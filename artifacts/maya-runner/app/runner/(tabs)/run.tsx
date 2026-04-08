@@ -55,6 +55,8 @@ export default function RunScreen() {
   const [followUser, setFollowUser] = useState(true);
   const [headingMode, setHeadingModeState] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [hasInitialPosition, setHasInitialPosition] = useState(false);
+  const [compassGranted, setCompassGranted] = useState(false);
 
   const mapRef = useRef<MapViewRef>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -66,6 +68,12 @@ export default function RunScreen() {
   const [isSavingRun, setIsSavingRun] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Refs to avoid stale closures in watchPosition callbacks
+  const runStateRef = useRef<RunState>("idle");
+  const followUserRef = useRef(true);
+  const orientationHandlerRef = useRef<((e: DeviceOrientationEvent) => void) | null>(null);
+  const hasInitialPositionRef = useRef(false);
+
   const topPad = Platform.OS === "web" ? 72 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -74,6 +82,10 @@ export default function RunScreen() {
   const isIdle = runState === "idle";
   const isPlanning = runState === "planning";
   const isActive = isRunning || isPaused;
+
+  // Keep refs in sync with state
+  useEffect(() => { runStateRef.current = runState; }, [runState]);
+  useEffect(() => { followUserRef.current = followUser; }, [followUser]);
 
   useEffect(() => {
     if (isRunning) {
@@ -93,6 +105,11 @@ export default function RunScreen() {
     return () => {
       timerRef.current && clearInterval(timerRef.current);
       locationSubRef.current?.remove?.();
+      // Clean up orientation listener
+      if (orientationHandlerRef.current) {
+        window.removeEventListener("deviceorientation", orientationHandlerRef.current);
+        orientationHandlerRef.current = null;
+      }
     };
   }, []);
 
@@ -102,8 +119,12 @@ export default function RunScreen() {
 
   async function checkLocationPermission() {
     if (Platform.OS === "web") {
-      setLocationPermission("granted");
-      getCurrentPositionWeb();
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        setLocationPermission("denied");
+        return;
+      }
+      // Start continuous GPS tracking immediately (not just on run start)
+      startContinuousWebTracking();
       return;
     }
     const { status } = await Location.getForegroundPermissionsAsync();
@@ -117,23 +138,112 @@ export default function RunScreen() {
     }
   }
 
-  function getCurrentPositionWeb() {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
+  /**
+   * Web GPS — uses watchPosition continuously so:
+   * - idle: map dot follows user (no distance recorded)
+   * - running: full tracking with Kalman + distance
+   * No Paris fallback — if GPS fails, show the permission/error state.
+   */
+  function startContinuousWebTracking() {
+    // Clear any previous watcher
+    locationSubRef.current?.remove?.();
+
+    const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const coord = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        setCurrentPosition(coord);
-        lastPositionRef.current = coord;
-        setTimeout(() => centerOnUser(coord), 400);
+        setLocationPermission("granted");
+
+        const coord: Coord = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        const accuracy = pos.coords.accuracy ?? undefined;
+        const speedMs = pos.coords.speed ?? undefined;
+
+        // Heading from GPS movement
+        if (pos.coords.heading != null && pos.coords.heading >= 0) {
+          setHeading(pos.coords.heading);
+        }
+
+        // First real position: center map and initialize
+        if (!hasInitialPositionRef.current) {
+          hasInitialPositionRef.current = true;
+          setHasInitialPosition(true);
+          setCurrentPosition(coord);
+          lastPositionRef.current = coord;
+          lastPositionTimeRef.current = Date.now();
+          kalmanRef.current = new KalmanGPS(coord.latitude, coord.longitude);
+          // Fly to real position
+          setTimeout(() => {
+            mapRef.current?.animateCamera({ center: coord, zoom: 17 }, { duration: 600 });
+          }, 200);
+          return;
+        }
+
+        const state = runStateRef.current;
+
+        if (state === "running") {
+          // Full tracking: Kalman filter + distance calculation
+          updatePosition(coord, accuracy, speedMs);
+        } else {
+          // Idle / planning / paused: just update display position
+          setCurrentPosition(coord);
+          if (followUserRef.current) {
+            mapRef.current?.animateCamera({ center: coord, zoom: 17 }, { duration: 300 });
+          }
+          lastPositionRef.current = coord;
+          lastPositionTimeRef.current = Date.now();
+        }
       },
-      () => {
-        const coord = { latitude: 48.8566, longitude: 2.3522 };
-        setCurrentPosition(coord);
-        lastPositionRef.current = coord;
-        setTimeout(() => centerOnUser(coord), 400);
+      (err) => {
+        console.warn("[GPS] watchPosition error:", err.code, err.message);
+        if (err.code === 1 /* PERMISSION_DENIED */) {
+          setLocationPermission("denied");
+        }
+        // For TIMEOUT (3) or POSITION_UNAVAILABLE (2): keep watching, GPS may recover
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 20000, // Allow 20s for first fix on iPhone
+      }
     );
+
+    locationSubRef.current = { remove: () => navigator.geolocation.clearWatch(watchId) };
+  }
+
+  /**
+   * iOS DeviceOrientation compass — must be called from a user gesture.
+   * Call this when the user taps the compass button.
+   */
+  async function requestCompassPermission() {
+    if (Platform.OS !== "web") return;
+    try {
+      if (
+        typeof DeviceOrientationEvent !== "undefined" &&
+        typeof (DeviceOrientationEvent as any).requestPermission === "function"
+      ) {
+        const result = await (DeviceOrientationEvent as any).requestPermission();
+        if (result !== "granted") return;
+      }
+
+      // Remove previous listener if any
+      if (orientationHandlerRef.current) {
+        window.removeEventListener("deviceorientation", orientationHandlerRef.current);
+      }
+
+      const handler = (e: DeviceOrientationEvent) => {
+        // webkitCompassHeading is iOS-specific and most reliable on iPhone
+        const compassHeading =
+          (e as any).webkitCompassHeading ??
+          (e.alpha != null ? (360 - e.alpha) % 360 : null);
+        if (compassHeading != null && !isNaN(compassHeading)) {
+          setHeading(Math.round(compassHeading));
+        }
+      };
+
+      orientationHandlerRef.current = handler;
+      window.addEventListener("deviceorientation", handler, true);
+      setCompassGranted(true);
+    } catch (err) {
+      console.warn("[Compass] Permission denied or not supported:", err);
+    }
   }
 
   async function fetchCurrentLocation() {
@@ -143,14 +253,12 @@ export default function RunScreen() {
       });
       const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setCurrentPosition(coord);
+      setHasInitialPosition(true);
       lastPositionRef.current = coord;
       kalmanRef.current = new KalmanGPS(coord.latitude, coord.longitude);
       setTimeout(() => centerOnUser(coord), 400);
     } catch {
-      const coord = { latitude: 48.8566, longitude: 2.3522 };
-      setCurrentPosition(coord);
-      lastPositionRef.current = coord;
-      kalmanRef.current = new KalmanGPS(coord.latitude, coord.longitude);
+      // Native: show denied if we truly can't get position
     }
   }
 
@@ -158,7 +266,7 @@ export default function RunScreen() {
     const target = coord ?? currentPosition;
     if (!target) return;
     mapRef.current?.animateCamera(
-      { center: target, zoom: 17, heading: headingMode ? heading : 0, pitch: isRunning ? 0 : 0 },
+      { center: target, zoom: 17, heading: headingMode ? heading : 0, pitch: 0 },
       { duration: 500 }
     );
   }
@@ -186,36 +294,26 @@ export default function RunScreen() {
       setRecordedRoute([currentPosition]);
       lastPositionRef.current = currentPosition;
       lastPositionTimeRef.current = Date.now();
+      // Reset Kalman from current known position
       kalmanRef.current = new KalmanGPS(currentPosition.latitude, currentPosition.longitude);
     }
 
     timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
-    if (Platform.OS === "web") startWebTracking();
-    else startNativeTracking();
-  }
 
-  function startWebTracking() {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const coord = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        updatePosition(coord, pos.coords.accuracy ?? undefined);
-        if (pos.coords.heading != null && pos.coords.heading >= 0) {
-          setHeading(pos.coords.heading);
-        }
-      },
-      (err) => console.warn("[GPS] Web error:", err.message),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
-    );
-    locationSubRef.current = { remove: () => navigator.geolocation.clearWatch(watchId) };
+    // Web: continuous watcher already running via startContinuousWebTracking.
+    // runStateRef will switch to "running" via useEffect, enabling position recording.
+    // Native: start location subscription.
+    if (Platform.OS !== "web") {
+      startNativeTracking();
+    }
   }
 
   async function startNativeTracking() {
     const sub = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 500,       // poll every 500ms for smoother tracking
-        distanceInterval: 1,     // trigger on 1m movement
+        timeInterval: 500,
+        distanceInterval: 1,
         mayShowUserSettingsDialog: true,
       },
       (loc) => {
@@ -229,46 +327,44 @@ export default function RunScreen() {
     locationSubRef.current = sub;
   }
 
+  // updatePosition — used during active run for distance/route recording.
+  // Uses refs for mutable values to avoid stale closure issues in watchPosition.
   const updatePosition = useCallback(
     (rawCoord: Coord, accuracy?: number, speedMs?: number) => {
-      // 1. Reject readings with very poor accuracy (indoor / satellite loss)
-      const acc = accuracy ?? 15;
-      if (acc > 40) return;
+      // Reject very poor accuracy readings (keep threshold relaxed for first few seconds)
+      const acc = accuracy ?? 20;
+      if (acc > 100) return; // Accept up to 100m (Kalman will smooth)
 
-      // 2. Apply Kalman filter to smooth out GPS noise
+      // Apply Kalman filter
       let smoothed: Coord = rawCoord;
       if (kalmanRef.current) {
         smoothed = kalmanRef.current.update(rawCoord.latitude, rawCoord.longitude, acc);
       }
 
-      // 3. Update current displayed position
       setCurrentPosition(smoothed);
 
-      // 4. Update live speed
+      // Live speed from GPS
       if (speedMs != null && speedMs >= 0) {
         setCurrentSpeedKmh(Math.round(speedMs * 3.6 * 10) / 10);
       }
 
-      // 5. Validate movement before adding to route
+      // Record movement if realistic
       if (lastPositionRef.current) {
         const now = Date.now();
         const elapsed = now - lastPositionTimeRef.current;
         const distKm = haversineKm(lastPositionRef.current, smoothed);
 
-        // Only record if movement is realistic for running
         if (isRealisticMovement(distKm, elapsed)) {
           setDistance((prev) => prev + distKm);
           setRecordedRoute((prev) => [...prev, smoothed]);
           lastPositionRef.current = smoothed;
           lastPositionTimeRef.current = now;
 
-          // Update speed from position if not provided by GPS
           if (speedMs == null) {
-            const spd = (distKm * 3600000) / elapsed;
+            const spd = elapsed > 0 ? (distKm * 3600000) / elapsed : 0;
             setCurrentSpeedKmh(Math.round(spd * 10) / 10);
           }
         } else if (distKm < 0.002) {
-          // Still / tiny movement — update position display but don't add to route
           lastPositionTimeRef.current = now;
         }
       } else {
@@ -277,25 +373,27 @@ export default function RunScreen() {
         setRecordedRoute([smoothed]);
       }
 
-      // 6. Follow user on map
-      if (followUser) {
+      // Follow user on map
+      if (followUserRef.current) {
         mapRef.current?.animateCamera({ center: smoothed, zoom: 17 }, { duration: 300 });
       }
     },
-    [followUser]
+    [] // No state dependencies — uses refs only
   );
 
   async function pauseRun() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     timerRef.current && clearInterval(timerRef.current);
-    locationSubRef.current?.remove?.();
+    // Native: stop location subscription (will restart on resume)
+    if (Platform.OS !== "web") {
+      locationSubRef.current?.remove?.();
+    }
     setRunState("paused");
   }
 
   async function resumeRun() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setRunState("running");
-    // Re-init Kalman from last known position so there's no jump
     if (lastPositionRef.current) {
       kalmanRef.current = new KalmanGPS(
         lastPositionRef.current.latitude,
@@ -304,14 +402,21 @@ export default function RunScreen() {
     }
     lastPositionTimeRef.current = Date.now();
     timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
-    if (Platform.OS === "web") startWebTracking();
-    else startNativeTracking();
+    // Native: restart location subscription
+    if (Platform.OS !== "web") {
+      startNativeTracking();
+    }
+    // Web: continuous watcher is still running; runStateRef update handles recording
   }
 
   async function stopRun() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     timerRef.current && clearInterval(timerRef.current);
-    locationSubRef.current?.remove?.();
+    // Native: stop tracking
+    if (Platform.OS !== "web") {
+      locationSubRef.current?.remove?.();
+    }
+    // Web: keep watcher alive so map dot stays accurate after run
     mapRef.current?.markRunFinished?.();
     setRunState("finished");
     setTimeout(() => setShowSummary(true), 800);
@@ -322,14 +427,13 @@ export default function RunScreen() {
     const pace = distance > 0 ? duration / 60 / distance : 0;
     const calories = estimateCalories(distance, duration, 70);
 
-    // OSRM map matching: snap recorded route to nearest roads
     let finalRoute = recordedRoute;
     try {
       if (recordedRoute.length >= 2) {
         finalRoute = await snapRouteToRoads(recordedRoute);
       }
     } catch {
-      finalRoute = recordedRoute; // fallback to raw route
+      finalRoute = recordedRoute;
     }
 
     await addRun({
@@ -397,7 +501,8 @@ export default function RunScreen() {
           </View>
           <Text style={[styles.permTitle, { color: colors.foreground }]}>Localisation requise</Text>
           <Text style={[styles.permText, { color: colors.mutedForeground }]}>
-            Maya Runner a besoin d'accéder à ta position pour tracer tes courses.
+            Maya Runner a besoin d'accéder à ta position.{"\n"}
+            Active la localisation dans Réglages → Safari → Localisation.
           </Text>
           <TouchableOpacity
             style={[styles.permBtn, { backgroundColor: colors.primary }]}
@@ -405,7 +510,7 @@ export default function RunScreen() {
             activeOpacity={0.85}
           >
             <Ionicons name="locate" size={18} color="#fff" />
-            <Text style={styles.permBtnText}>Autoriser la localisation</Text>
+            <Text style={styles.permBtnText}>Réessayer</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -426,6 +531,17 @@ export default function RunScreen() {
             onPanDrag={() => { if (isRunning) setFollowUser(false); }}
             onPress={() => {}}
           />
+
+          {/* GPS acquisition overlay */}
+          {locationPermission !== "denied" && !hasInitialPosition && (
+            <View style={styles.gpsOverlay}>
+              <View style={styles.gpsCard}>
+                <Text style={styles.gpsEmoji}>📡</Text>
+                <Text style={styles.gpsText}>Acquisition GPS...</Text>
+                <Text style={styles.gpsSub}>Autorise la localisation si demandé</Text>
+              </View>
+            </View>
+          )}
 
           <View style={[styles.topBar, { paddingTop: topPad + 8 }]}>
             {isActive ? (
@@ -471,7 +587,9 @@ export default function RunScreen() {
                   <Text style={styles.idleSub}>
                     {isPlanning
                       ? "Appuie sur la carte pour tracer ton itinéraire"
-                      : "Lance ou planifie ta course"}
+                      : hasInitialPosition
+                      ? "Lance ou planifie ta course"
+                      : "📡 Acquisition GPS en cours..."}
                   </Text>
                 )}
               </View>
@@ -491,6 +609,21 @@ export default function RunScreen() {
               <Ionicons name="locate" size={18} color={followUser && isRunning ? colors.primary : "#fff"} />
             </TouchableOpacity>
 
+            {/* Compass button — on iOS web, tap to request DeviceOrientation permission */}
+            {Platform.OS === "web" && (
+              <TouchableOpacity
+                style={[
+                  styles.mapBtn,
+                  { backgroundColor: "rgba(18,18,24,0.92)" },
+                  compassGranted && { backgroundColor: colors.primary },
+                ]}
+                onPress={requestCompassPermission}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="compass-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+            )}
+
             {isActive && (
               <TouchableOpacity
                 style={[
@@ -501,7 +634,7 @@ export default function RunScreen() {
                 onPress={toggleHeadingMode}
                 activeOpacity={0.8}
               >
-                <Ionicons name="compass-outline" size={18} color="#fff" />
+                <Ionicons name="navigate-outline" size={18} color="#fff" />
               </TouchableOpacity>
             )}
           </View>
@@ -518,7 +651,7 @@ export default function RunScreen() {
                   <Text style={styles.secBtnText}>Planifier</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.bigBtn, { backgroundColor: colors.primary }]}
+                  style={[styles.bigBtn, { backgroundColor: colors.primary, opacity: hasInitialPosition ? 1 : 0.6 }]}
                   onPress={startRun}
                   activeOpacity={0.85}
                 >
@@ -669,6 +802,13 @@ const styles = StyleSheet.create({
   permText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   permBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 30, marginTop: 8 },
   permBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
+  gpsOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", pointerEvents: "none" as any },
+  gpsCard: { backgroundColor: "rgba(13,13,20,0.92)", borderRadius: 20, padding: 24, alignItems: "center", gap: 8, borderWidth: 1, borderColor: "rgba(79,195,247,0.3)" },
+  gpsEmoji: { fontSize: 36 },
+  gpsText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  gpsSub: { color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" },
+
   topBar: { position: "absolute", top: 0, left: 0, right: 0, paddingHorizontal: 20, paddingBottom: 12, backgroundColor: "rgba(13,13,13,0.88)" },
   statsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingTop: 4 },
   statBlock: { alignItems: "center", gap: 2 },
